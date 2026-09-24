@@ -1,0 +1,152 @@
+# Geo Platform — local development environment.
+#
+#   docker compose up --build
+#
+# Every secret below has a DEVELOPMENT-ONLY default so the stack starts without
+# a .env file. Copy .env.example to .env to override them. The API refuses to
+# start with ENVIRONMENT=production while any development default is in use.
+
+name: geo-platform
+
+x-dev-secrets:
+  # Shared between services. Change all of them for any non-local deployment.
+  api-key-pepper: &api-key-pepper ${API_KEY_PEPPER:-dev-only-api-key-pepper-change-me-0123456789}
+  gateway-secret: &gateway-secret ${GATEWAY_SECRET:-dev-only-gateway-secret-change-me-0123456789}
+  site-api-key: &site-api-key ${SITE_API_KEY:-geo_live_DevOnlySiteKey000000000000000000}
+  convex-instance-secret: &convex-instance-secret ${CONVEX_INSTANCE_SECRET:-6465762d6f6e6c792d636f6e7665782d696e7374616e63652d73656372657421}
+
+services:
+  # Self-hosted Convex: developer accounts, API keys, usage, rate limits.
+  # Idle when CONVEX_DEPLOY_KEY points the stack at Convex Cloud instead.
+  convex-backend:
+    image: ghcr.io/get-convex/convex-backend:0cf49cbf8c4b7e22e631ceda9b5111f6cccbcd49
+    environment:
+      INSTANCE_NAME: ${CONVEX_INSTANCE_NAME:-geo-platform}
+      INSTANCE_SECRET: *convex-instance-secret
+      # Origins as seen by browsers (the dashboard's live queries connect here).
+      CONVEX_CLOUD_ORIGIN: ${CONVEX_CLOUD_ORIGIN:-http://127.0.0.1:3210}
+      CONVEX_SITE_ORIGIN: ${CONVEX_SITE_ORIGIN:-http://127.0.0.1:3211}
+      DISABLE_BEACON: "true"
+    ports:
+      - "127.0.0.1:3210:3210"
+      - "127.0.0.1:3211:3211"
+    volumes:
+      - convex-data:/convex/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3210/version"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 5s
+    restart: unless-stopped
+
+  # One-shot job: pushes the Convex functions, sets deployment env vars,
+  # registers the site key and (in development) seeds the demo account.
+  convex-deploy:
+    build:
+      context: .
+      dockerfile: apps/convex/Dockerfile
+    environment:
+      INSTANCE_NAME: ${CONVEX_INSTANCE_NAME:-geo-platform}
+      INSTANCE_SECRET: *convex-instance-secret
+      CONVEX_SELF_HOSTED_URL: http://convex-backend:3210
+      # Set to deploy to Convex Cloud instead of the self-hosted backend.
+      CONVEX_DEPLOY_KEY: ${CONVEX_DEPLOY_KEY:-}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SITE_URL: ${WEB_BASE_URL:-http://localhost:3000}
+      API_KEY_PEPPER: *api-key-pepper
+      GATEWAY_SECRET: *gateway-secret
+      SITE_API_KEY: *site-api-key
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
+      USAGE_RETENTION_DAYS: ${USAGE_RETENTION_DAYS:-30}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-console}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      # DEVELOPMENT ONLY demo account and key (see README). Never enable on a
+      # deployment reachable from the internet.
+      SEED_DEMO_ACCOUNT: ${SEED_DEMO_ACCOUNT:-true}
+      DEMO_EMAIL: ${DEMO_EMAIL:-demo@example.com}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo-password-dev-only}
+      DEMO_API_KEY: ${DEMO_API_KEY:-geo_test_DevOnlyDemoKey000000000000000000}
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+    restart: "no"
+
+  # Public API gateway: /v1 geocoding, reverse geocoding, routing.
+  api:
+    build:
+      context: apps/api
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:-http://localhost:8000}
+      # Convex HTTP actions ("HTTP Actions URL" on Convex Cloud).
+      CONVEX_SITE_URL: ${CONVEX_SITE_URL:-http://convex-backend:3211}
+      GATEWAY_SECRET: *gateway-secret
+      API_KEY_PEPPER: *api-key-pepper
+      SITE_API_KEY: *site-api-key
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
+      SITE_KEY_PER_IP_PER_MINUTE: ${SITE_KEY_PER_IP_PER_MINUTE:-60}
+      CACHE_GEOCODE_TTL_SECONDS: ${CACHE_GEOCODE_TTL_SECONDS:-0}
+      # Your ArcGIS services (internal; never exposed publicly).
+      ARCGIS_GEOCODE_SERVER: ${ARCGIS_GEOCODE_SERVER:-}
+      ARCGIS_ROUTE_SERVICE: ${ARCGIS_ROUTE_SERVICE:-}
+      ARCGIS_GEOCODING_FEATURE_SERVER: ${ARCGIS_GEOCODING_FEATURE_SERVER:-}
+      ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER: ${ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER:-}
+      ARCGIS_ROUTING_FEATURE_SERVER: ${ARCGIS_ROUTING_FEATURE_SERVER:-}
+      ARCGIS_TOKEN: ${ARCGIS_TOKEN:-}
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    depends_on:
+      convex-deploy:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    restart: unless-stopped
+
+  # Next.js website: map, developer portal, docs, dashboard.
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+        NEXT_PUBLIC_CONVEX_URL: ${NEXT_PUBLIC_CONVEX_URL:-http://127.0.0.1:3210}
+        NEXT_PUBLIC_MAP_STYLE_URL: ${NEXT_PUBLIC_MAP_STYLE_URL:-https://basemaps.arcgis.com/arcgis/rest/services/World_Basemap_v2/VectorTileServer/resources/styles/root.json}
+    environment:
+      API_INTERNAL_URL: http://api:8000
+      # Convex as reached from the web server ("Cloud URL" on Convex Cloud).
+      CONVEX_URL: ${CONVEX_URL:-http://convex-backend:3210}
+      SITE_API_KEY: *site-api-key
+    ports:
+      - "3000:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Optional: Convex dashboard (data browser, function logs incl. dev emails).
+  #   docker compose --profile tools up convex-dashboard
+  # Admin key: docker compose exec convex-backend ./generate_admin_key.sh
+  convex-dashboard:
+    image: ghcr.io/get-convex/convex-dashboard:0cf49cbf8c4b7e22e631ceda9b5111f6cccbcd49
+    profiles: ["tools"]
+    environment:
+      NEXT_PUBLIC_DEPLOYMENT_URL: ${CONVEX_CLOUD_ORIGIN:-http://127.0.0.1:3210}
+    ports:
+      - "127.0.0.1:6791:6791"
+    depends_on:
+      convex-backend:
+        condition: service_healthy
+
+volumes:
+  convex-data:

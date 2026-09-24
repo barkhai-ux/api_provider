@@ -1,0 +1,22 @@
+{
+  "name": "@geo-platform/convex",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Convex backend: developer accounts, API keys, usage and rate limits.",
+  "type": "module",
+  "exports": {
+    "./api": "./convex/_generated/api.js",
+    "./dataModel": "./convex/_generated/dataModel.d.ts"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy --yes",
+    "codegen": "convex codegen",
+    "typecheck": "tsc -p convex --noEmit"
+  },
+  "dependencies": {
+    "@auth/core": "^0.41.3",
+    "@convex-dev/auth": "^0.0.95",
+    "convex": "^1.46.0"
+  }
+}

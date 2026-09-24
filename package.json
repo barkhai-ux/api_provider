@@ -1,0 +1,24 @@
+{
+  "name": "geo-platform",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/convex",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace @geo-platform/web",
+    "build": "npm run build --workspace @geo-platform/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
+    "generate:types": "npm run generate --workspace @geo-platform/types"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0"
+  }
+}
