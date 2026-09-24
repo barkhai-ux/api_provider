@@ -2,15 +2,10 @@
 
 import { GeoApiError, type GeocodeResult, type RouteResponse, type TravelMode } from "@geo-platform/api-client";
 import { useMutation } from "@tanstack/react-query";
-import { ChevronDown, ChevronUp, Menu, Navigation, Search, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Navigation, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AuthNav } from "@/components/site/auth-nav";
-import { Logo } from "@/components/site/logo";
-import { PUBLIC_NAV } from "@/components/site/nav-items";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { publicConfig, siteConfig } from "@/lib/config";
@@ -271,8 +266,8 @@ export function MapApp() {
 
   const route = routeMutation.data && !routeError ? (routeMutation.data.route.geometry.coordinates as LngLatTuple[]) : null;
   const padding = isDesktop
-    ? { top: 96, right: directionsOpen ? 400 : 48, bottom: 48, left: 48 }
-    : { top: 88, right: 32, bottom: sheetHeight + 32, left: 32 };
+    ? { top: 80, right: directionsOpen ? 400 : 48, bottom: 48, left: 48 }
+    : { top: 32, right: 32, bottom: sheetHeight + 32, left: 32 };
 
   const routePanel = (
     <RoutePanel
@@ -316,7 +311,7 @@ export function MapApp() {
   );
 
   return (
-    <div className="theme-dark relative h-dvh w-full overflow-hidden bg-muted text-foreground">
+    <div className="theme-dark relative h-full w-full overflow-hidden bg-muted text-foreground">
       <h1 className="sr-only">Geo Platform map</h1>
       <MapView
         styleUrl={publicConfig.mapStyleUrl}
@@ -335,59 +330,24 @@ export function MapApp() {
       />
 
       {styleError && (
-        <div role="alert" className="absolute inset-x-3 top-24 z-20 mx-auto max-w-md rounded-xl border bg-background p-3 text-sm shadow-lg">
+        <div role="alert" className="absolute inset-x-3 top-20 z-20 mx-auto max-w-md rounded-xl border bg-background p-3 text-sm shadow-lg">
           The basemap could not be loaded. Search and routing still work; check your connection or the map style URL.
         </div>
       )}
 
-      {/* Top bar */}
-      <header className="pointer-events-none absolute inset-x-0 top-0 z-20 p-2 sm:p-3">
-        <div className="pointer-events-auto flex h-16 items-center gap-4 rounded-2xl border bg-background/95 px-4 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.6)] backdrop-blur supports-backdrop-filter:bg-background/90">
-          <Logo className="shrink-0" />
-          {isDesktop && <div className="mx-auto w-full max-w-md">{searchBox}</div>}
-          {isDesktop ? (
-            <div className="flex shrink-0 items-center gap-1">
-              <Button asChild variant="ghost" className="font-semibold">
-                <Link href="/developers">Developers</Link>
-              </Button>
-              <Button asChild variant="ghost" className="font-semibold">
-                <Link href="/developers/docs">Docs</Link>
-              </Button>
-              <AuthNav />
-            </div>
-          ) : (
-            <Sheet>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="ml-auto" aria-label="Open menu">
-                  <Menu />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-72">
-                <SheetHeader>
-                  <SheetTitle>Menu</SheetTitle>
-                </SheetHeader>
-                <nav aria-label="Main" className="flex flex-col gap-1 px-4">
-                  {PUBLIC_NAV.map((item) => (
-                    <Link key={item.href} href={item.href} className="rounded-md px-3 py-2 text-sm hover:bg-muted">
-                      {item.label}
-                    </Link>
-                  ))}
-                </nav>
-                <div className="mt-4 border-t px-4 pt-4">
-                  <AuthNav compact />
-                </div>
-              </SheetContent>
-            </Sheet>
-          )}
+      {/* Desktop search */}
+      {isDesktop && (
+        <div className="absolute top-3 left-3 z-20 w-[400px] max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-background/95 p-2 shadow-[0_12px_40px_-12px_rgb(0_0_0/0.6)] backdrop-blur supports-backdrop-filter:bg-background/90">
+          {searchBox}
         </div>
-      </header>
+      )}
 
       {/* Desktop directions panel */}
       {isDesktop &&
         (directionsOpen ? (
           <section
             aria-labelledby="directions-heading"
-            className="absolute top-24 right-3 z-10 w-[380px] max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-background/95 p-5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.7)] backdrop-blur"
+            className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-[380px] overflow-y-auto max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-background/95 p-5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.7)] backdrop-blur"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="directions-heading" className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
@@ -400,7 +360,7 @@ export function MapApp() {
             {routePanel}
           </section>
         ) : (
-          <Button size="pill" className="absolute top-24 right-3 z-10 h-10 px-5 shadow-lg" onClick={openDirections}>
+          <Button size="pill" className="absolute top-3 right-3 z-10 h-10 px-5 shadow-lg" onClick={openDirections}>
             <Navigation /> Directions
           </Button>
         ))}
