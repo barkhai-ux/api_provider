@@ -30,14 +30,18 @@ async function hit(ctx: MutationCtx, bucket: string, limit: number, now: number)
 }
 
 /**
- * Validates a credential (by its peppered hash) and counts the request against
- * the rate limit. Keys are limited per key; the website's site key is limited
- * per visitor IP instead, so one visitor cannot use up the shared key.
+ * Validates a credential (by its peppered hash), checks that its key may call
+ * `endpoint`, and counts the request against the rate limit. Keys are limited
+ * per key; the website's site key is limited per visitor IP instead, so one
+ * visitor cannot use up the shared key.
  */
 export const authorize = internalMutation({
   args: {
     kind: v.union(v.literal("key"), v.literal("playground")),
     hash: v.string(),
+    // The endpoint called, e.g. "geocode". Keys limited to some endpoints are
+    // refused when it is missing.
+    endpoint: v.optional(v.string()),
     defaultLimit: v.number(),
     clientIp: v.optional(v.string()),
     perIpLimit: v.optional(v.number()),
@@ -68,6 +72,10 @@ export const authorize = internalMutation({
 
     const isSiteKey = key.isSiteKey === true && !viaPlayground;
     const principal = { keyId: key._id, userId: key.userId, isSiteKey, viaPlayground };
+    if (key.endpoints !== undefined && !key.endpoints.some((allowed) => allowed === args.endpoint)) {
+      // Not counted against the rate limit; recorded in usage as a 403.
+      return { status: "endpoint_not_allowed" as const, principal, allowedEndpoints: key.endpoints };
+    }
     const state =
       isSiteKey && args.clientIp && args.perIpLimit
         ? await hit(ctx, `ip:${args.clientIp}`, args.perIpLimit, now)

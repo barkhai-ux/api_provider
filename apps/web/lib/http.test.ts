@@ -32,4 +32,16 @@ describe("clientIp", () => {
   it("ignores malformed values", () => {
     expect(clientIp(request({ "x-forwarded-for": "not an ip<script>" }))).toBeUndefined();
   });
+
+  it("prefers the trusted header named by CLIENT_IP_HEADER", () => {
+    vi.stubEnv("CLIENT_IP_HEADER", "CF-Connecting-IP");
+    try {
+      const headers = { "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "203.0.113.9, 10.0.0.1" };
+      expect(clientIp(request(headers))).toBe("203.0.113.9");
+      // Falls back to X-Forwarded-For when the trusted header is missing.
+      expect(clientIp(request({ "x-forwarded-for": "10.0.0.1" }))).toBe("10.0.0.1");
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
 });

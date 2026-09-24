@@ -1,0 +1,100 @@
+# Render Blueprint: the website and the public API as two Docker web services.
+# Convex (accounts, API keys, usage, rate limits) runs on Convex Cloud.
+#
+# Setup, in order, is in docs/deploy-render.md. In short:
+#   1. node scripts/generate-secrets.mjs > .env.production
+#   2. Deploy Convex to production with those secrets (see the guide).
+#   3. Render Dashboard > New > Blueprint > this repository. Fill in the
+#      prompted values (sync: false) below.
+#
+# Service URLs are https://<name>.onrender.com. If Render adds a suffix
+# because a name is taken, update the URL variables and redeploy.
+#
+# Free instances stop after 15 minutes without traffic and take about a
+# minute to start again. The website wakes the API when it starts.
+
+services:
+  # Public API gateway: /v1 geocoding, reverse geocoding, routing.
+  - type: web
+    name: geoplatform-api
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: ./apps/api
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/api/**
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      # This service's public URL, e.g. https://geoplatform-api.onrender.com
+      - key: PUBLIC_API_URL
+        sync: false
+      # Convex "HTTP Actions URL" of the production deployment (*.convex.site).
+      - key: CONVEX_SITE_URL
+        sync: false
+      # Same values as in the Convex production deployment.
+      - key: API_KEY_PEPPER
+        sync: false
+      - key: GATEWAY_SECRET
+        sync: false
+      - key: SITE_API_KEY
+        sync: false
+      # The public API is called from anywhere (no cookies are used).
+      - key: CORS_ORIGINS
+        value: "*"
+      # Your ArcGIS services. Internal: never shown to API users.
+      - key: ARCGIS_GEOCODE_SERVER
+        sync: false
+      - key: ARCGIS_ROUTE_SERVICE
+        sync: false
+      - key: ARCGIS_CLIENT_ID
+        sync: false
+      - key: ARCGIS_CLIENT_SECRET
+        sync: false
+      - key: ARCGIS_TOKEN
+        sync: false
+      # The Referer the ArcGIS tokens are bound to (sent by the API itself).
+      - key: ARCGIS_TOKEN_REFERER
+        sync: false
+
+  # Website: map, developer portal, docs, dashboard.
+  - type: web
+    name: geoplatform-web
+    runtime: docker
+    plan: free
+    region: singapore
+    dockerfilePath: ./apps/web/Dockerfile
+    dockerContext: .
+    healthCheckPath: /robots.txt
+    autoDeployTrigger: commit
+    buildFilter:
+      paths:
+        - apps/web/**
+        - apps/convex/**
+        - packages/**
+        - package.json
+        - package-lock.json
+    envVars:
+      # NEXT_PUBLIC_* values are passed to the Docker build and inlined into
+      # the browser bundle. Changing one needs a new deploy.
+      - key: NEXT_PUBLIC_API_URL
+        sync: false
+      - key: NEXT_PUBLIC_CONVEX_URL
+        sync: false
+      # Convex "Cloud URL" as reached from the server (same as above).
+      - key: CONVEX_URL
+        sync: false
+      # The API's public URL. Free services cannot receive private network
+      # traffic, so the website calls the API over HTTPS.
+      - key: API_INTERNAL_URL
+        sync: false
+      - key: SITE_API_KEY
+        sync: false
+      # Render runs behind Cloudflare, which sets this header to the visitor's
+      # IP and overwrites any value the client sends.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip

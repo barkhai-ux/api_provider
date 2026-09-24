@@ -7,16 +7,23 @@ export function errorResponse(status: number, code: string, message: string): Re
   return Response.json({ error: { code, message } }, { status, headers: { "Cache-Control": "no-store" } });
 }
 
+const IP_PATTERN = /^[0-9a-fA-F:.]{2,45}$/;
+
 /**
- * The visitor's IP. Uses the right-most X-Forwarded-For entry, which is the
- * address seen by the closest proxy. In production run behind a reverse proxy
- * that sets X-Forwarded-For; otherwise clients can spoof it.
+ * The visitor's IP. When CLIENT_IP_HEADER is set (for example cf-connecting-ip
+ * on Render, which sits behind Cloudflare), that header is used: it must hold a
+ * single IP set by a trusted edge proxy that overwrites any client value.
+ * Otherwise the right-most X-Forwarded-For entry is used, which is the address
+ * seen by the closest proxy. In production run behind a reverse proxy that sets
+ * one of these headers; otherwise clients can spoof it.
  */
 export function clientIp(request: NextRequest): string | undefined {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const candidate = forwarded?.split(",").map((part) => part.trim()).filter(Boolean).at(-1)
-    ?? request.headers.get("x-real-ip")?.trim();
-  return candidate && /^[0-9a-fA-F:.]{2,45}$/.test(candidate) ? candidate : undefined;
+  const trustedHeader = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
+  const candidate =
+    (trustedHeader ? request.headers.get(trustedHeader)?.trim() : undefined)
+    || request.headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean).at(-1)
+    || request.headers.get("x-real-ip")?.trim();
+  return candidate && IP_PATTERN.test(candidate) ? candidate : undefined;
 }
 
 /**

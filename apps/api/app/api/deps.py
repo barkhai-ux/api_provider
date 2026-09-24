@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 bearer_scheme = HTTPBearer(
     auto_error=False,
     scheme_name="ApiKey",
-    bearerFormat="geo_live_…",
+    bearerFormat="geo_…",
     description="Send your API key in the `Authorization` header: `Authorization: Bearer YOUR_API_KEY`.",
 )
 
@@ -45,6 +45,12 @@ def _client_ip(request: Request) -> str:
         return str(ipaddress.ip_address(forwarded))
     except ValueError:
         return request.client.host if request.client else "unknown"
+
+
+def _endpoint(request: Request) -> str:
+    """The endpoint a key must be allowed to call: the /v1 path without the
+    prefix, e.g. "reverse-geocode" (the names used when a key is created)."""
+    return request.url.path.removeprefix("/v1/").strip("/")
 
 
 def _missing_key() -> ApiError:
@@ -78,6 +84,7 @@ async def require_api_key(
         result = await gateway.authorize(
             kind="playground" if kind == "playground" else "key",
             credential_hash=credential_hash,
+            endpoint=_endpoint(request),
             default_limit=settings.rate_limit_per_minute,
             client_ip=_client_ip(request) if is_site_key else None,
             per_ip_limit=settings.site_key_per_ip_per_minute if is_site_key else None,
@@ -107,6 +114,13 @@ async def require_api_key(
             "Too many requests.",
             {"limit": result.rate_limit.limit} if result.rate_limit else None,
             headers={"Retry-After": retry_after},
+        )
+    if result.status == "endpoint_not_allowed":
+        raise ApiError(
+            403,
+            ErrorCode.ENDPOINT_NOT_ALLOWED,
+            "This API key is not allowed to call this endpoint. Create a key that includes it.",
+            {"allowed_endpoints": result.allowed_endpoints or []},
         )
     if result.status == "revoked":
         raise ApiError(403, ErrorCode.API_KEY_REVOKED, "This API key has been revoked.")

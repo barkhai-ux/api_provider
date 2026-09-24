@@ -14,6 +14,7 @@ import type * as crons from "../crons.js";
 import type * as gateway from "../gateway.js";
 import type * as http from "../http.js";
 import type * as lib_crypto from "../lib/crypto.js";
+import type * as lib_endpoints from "../lib/endpoints.js";
 import type * as lib_env from "../lib/env.js";
 import type * as lib_keys from "../lib/keys.js";
 import type * as lib_passwordReset from "../lib/passwordReset.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   gateway: typeof gateway;
   http: typeof http;
   "lib/crypto": typeof lib_crypto;
+  "lib/endpoints": typeof lib_endpoints;
   "lib/env": typeof lib_env;
   "lib/keys": typeof lib_keys;
   "lib/passwordReset": typeof lib_passwordReset;

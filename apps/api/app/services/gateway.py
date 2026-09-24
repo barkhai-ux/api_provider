@@ -17,7 +17,7 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 CredentialKind = Literal["key", "playground"]
-AuthorizationStatus = Literal["ok", "invalid", "expired", "revoked", "rate_limited"]
+AuthorizationStatus = Literal["ok", "invalid", "expired", "revoked", "rate_limited", "endpoint_not_allowed"]
 
 
 class ConvexGatewayError(Exception):
@@ -48,6 +48,8 @@ class Authorization(BaseModel):
     status: AuthorizationStatus
     principal: Principal | None = None
     rate_limit: RateLimitState | None = None
+    # Set with status "endpoint_not_allowed": the endpoints the key may call.
+    allowed_endpoints: list[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,11 +103,17 @@ class ConvexGateway:
         *,
         kind: CredentialKind,
         credential_hash: str,
+        endpoint: str,
         default_limit: int,
         client_ip: str | None = None,
         per_ip_limit: int | None = None,
     ) -> Authorization:
-        body: dict[str, Any] = {"kind": kind, "hash": credential_hash, "defaultLimit": default_limit}
+        body: dict[str, Any] = {
+            "kind": kind,
+            "hash": credential_hash,
+            "endpoint": endpoint,
+            "defaultLimit": default_limit,
+        }
         if client_ip is not None and per_ip_limit is not None:
             body["clientIp"] = client_ip
             body["perIpLimit"] = per_ip_limit
@@ -116,6 +124,7 @@ class ConvexGateway:
                     "status": payload.get("status"),
                     "principal": _principal(payload.get("principal")),
                     "rate_limit": payload.get("rateLimit"),
+                    "allowed_endpoints": payload.get("allowedEndpoints"),
                 }
             )
         except ValidationError as exc:

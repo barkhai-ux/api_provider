@@ -26,17 +26,22 @@ export default function AuthenticationPage() {
         Keys are created in the <A href="/dashboard/api-keys">dashboard</A>. Each key belongs to your account, has its
         own name, rate limit and usage history, and looks like this:
       </P>
-      <CodeBlock lang="bash" title="Key format" code={"geo_live_4f9KcX2mQ7rT1vZ8bN3pL6wY0sH5dJ2a"} />
+      <CodeBlock lang="bash" title="Key format" code={"geo_4f9KcX2mQ7rT1vZ8bN3pL6wY0sH5dJ2a"} />
       <UL>
         <li>
-          <C>geo_live_</C> or <C>geo_test_</C>, followed by 32 random letters and digits.
+          <C>geo_</C> followed by 32 random letters and digits. There is one kind of key; keys created earlier with a{" "}
+          <C>geo_live_</C> or <C>geo_test_</C> prefix keep working.
+        </li>
+        <li>
+          When you create a key you choose which endpoints it can call (geocoding, reverse geocoding, routing) and when
+          it expires: after 30, 60 or 90 days, after a year, on a date you pick, or never.
         </li>
         <li>
           The full key is shown <strong>once</strong>, when you create or regenerate it. The platform stores only a
           keyed hash, so nobody (including us) can show it to you again.
         </li>
         <li>
-          In the dashboard a key appears masked, for example <C>geo_live_4f9K••••••••••••</C>.
+          In the dashboard a key appears masked, for example <C>geo_4f9K••••••••••••</C>.
         </li>
       </UL>
 
@@ -76,11 +81,14 @@ export default function AuthenticationPage() {
         caption="Key actions"
         columns={[{ header: "Action", className: "w-36" }, { header: "Effect" }]}
         rows={[
-          ["Create", "Issues a new key and shows the secret once. An account can have up to 25 active keys."],
+          [
+            "Create",
+            "Issues a new key for the endpoints you choose, with an expiry date or none, and shows the secret once. An account can have up to 25 active keys.",
+          ],
           ["Rename", "Changes the label only. The secret keeps working."],
           [
             "Regenerate",
-            "Issues a new secret for the same key. The old secret stops working immediately; the name and usage history are kept.",
+            "Issues a new secret for the same key. The old secret stops working immediately; the name, endpoints, expiry date and usage history are kept. Expired keys cannot be regenerated; create a new key instead.",
           ],
           ["Revoke", "Permanently disables the key. Requests with it get 403 API_KEY_REVOKED. This cannot be undone."],
         ]}
@@ -103,6 +111,13 @@ export default function AuthenticationPage() {
           ["401", <C key="c">INVALID_API_KEY</C>, "The header is missing, malformed, or the key does not exist."],
           ["401", <C key="c">INVALID_API_KEY</C>, <span key="d">The key has expired (<C>details.reason</C> is <C>&quot;expired&quot;</C>).</span>],
           ["403", <C key="c">API_KEY_REVOKED</C>, "The key was revoked."],
+          [
+            "403",
+            <C key="c">ENDPOINT_NOT_ALLOWED</C>,
+            <span key="d">
+              The key is not allowed to call this endpoint (<C>details.allowed_endpoints</C> lists the ones it can call).
+            </span>,
+          ],
         ]}
       />
       <CodeBlock

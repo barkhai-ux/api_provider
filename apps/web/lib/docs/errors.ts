@@ -32,6 +32,17 @@ export const ERROR_CATALOG: ErrorInfo[] = [
     example: { message: "This API key has been revoked." },
   },
   {
+    status: 403,
+    code: "ENDPOINT_NOT_ALLOWED",
+    meaning:
+      "The key is not allowed to call this endpoint. Each key is limited to the endpoints chosen when it was created; `details.allowed_endpoints` lists them.",
+    action: "Use a key that includes this endpoint, or create one in the dashboard.",
+    example: {
+      message: "This API key is not allowed to call this endpoint. Create a key that includes it.",
+      details: { allowed_endpoints: ["geocode", "reverse-geocode"] },
+    },
+  },
+  {
     status: 404,
     code: "NOT_FOUND",
     meaning:

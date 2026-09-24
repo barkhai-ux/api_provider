@@ -44,7 +44,6 @@ export const upsertKey = internalMutation({
     name: v.string(),
     keyHash: v.string(),
     keyPrefix: v.string(),
-    environment: v.union(v.literal("live"), v.literal("test")),
     isSiteKey: v.boolean(),
   },
   handler: async (ctx, args) => {
@@ -78,14 +77,13 @@ export const ensureSiteKey = internalAction({
   handler: async (ctx) => {
     const secret = process.env.SITE_API_KEY;
     if (!secret) return { siteKey: "not configured" };
-    if (!isValidApiKey(secret)) throw new Error("SITE_API_KEY must look like geo_live_ followed by 32 letters/digits.");
+    if (!isValidApiKey(secret)) throw new Error("SITE_API_KEY must look like geo_ followed by 32 letters/digits.");
     const userId = await ctx.runMutation(internal.platform.upsertSystemUser, {});
     await ctx.runMutation(internal.platform.upsertKey, {
       userId,
       name: SITE_KEY_NAME,
       keyHash: await hmacSha256Hex(requireEnv("API_KEY_PEPPER"), secret),
       keyPrefix: keyPrefix(secret),
-      environment: secret.startsWith("geo_test_") ? "test" : "live",
       isSiteKey: true,
     });
     return { siteKey: "ok" };
@@ -103,7 +101,7 @@ export const seedDevelopment = internalAction({
     const email = (process.env.DEMO_EMAIL ?? "demo@example.com").toLowerCase();
     const password = requireEnv("DEMO_PASSWORD");
     const apiKey = requireEnv("DEMO_API_KEY");
-    if (!isValidApiKey(apiKey)) throw new Error("DEMO_API_KEY must look like geo_test_ followed by 32 letters/digits.");
+    if (!isValidApiKey(apiKey)) throw new Error("DEMO_API_KEY must look like geo_ followed by 32 letters/digits.");
 
     let user = await ctx.runQuery(internal.platform.userByEmail, { email });
     if (user === null) {
@@ -119,7 +117,6 @@ export const seedDevelopment = internalAction({
       name: DEMO_KEY_NAME,
       keyHash: await hmacSha256Hex(requireEnv("API_KEY_PEPPER"), apiKey),
       keyPrefix: keyPrefix(apiKey),
-      environment: apiKey.startsWith("geo_live_") ? "live" : "test",
       isSiteKey: false,
     });
     return { demoUser: email };

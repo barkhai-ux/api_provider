@@ -61,10 +61,10 @@ export default function GettingStartedPage() {
         </li>
         <li>
           Choose <strong>Create API key</strong>, give it a name that says where it is used (for example
-          &quot;Production backend&quot;) and confirm.
+          &quot;Production backend&quot;), choose the endpoints it may call and when it expires, and confirm.
         </li>
         <li>
-          Copy the key or download it. It looks like <C>geo_live_</C> followed by 32 letters and digits.
+          Copy the key or download it. It looks like <C>geo_</C> followed by 32 letters and digits.
         </li>
       </OL>
       <Callout tone="warning" title="The key is shown only once">

@@ -13,7 +13,7 @@ export const DEFAULT_TIMEOUT_MS = 15_000;
 export type LngLat = readonly [longitude: number, latitude: number];
 
 export interface GeoClientOptions {
-  /** Your API key (`geo_live_…`). Keep it on the server; never ship it in browser code. */
+  /** Your API key (`geo_…`). Keep it on the server; never ship it in browser code. */
   apiKey?: string;
   /** API origin, without `/v1`. Defaults to the production API. */
   baseUrl?: string;

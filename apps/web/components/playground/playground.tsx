@@ -22,7 +22,7 @@ import {
   type PlaygroundEndpointId,
 } from "./endpoints";
 
-type ConnectedKey = { id: string; name: string; maskedKey: string; environment: "live" | "test" };
+type ConnectedKey = { id: string; name: string; maskedKey: string; endpoints: PlaygroundEndpointId[] };
 type KeysState = { status: "signed-out" } | { status: "ok"; keys: ConnectedKey[] };
 type AuthMode = "connected" | "paste";
 
@@ -88,8 +88,12 @@ export function Playground({ endpoint: endpointId, className }: { endpoint: Play
     retry: false,
   });
 
-  const connectedKeys = keys.data?.status === "ok" ? keys.data.keys : [];
-  const effectiveKeyId = selectedKeyId || connectedKeys[0]?.id || "";
+  const allKeys = keys.data?.status === "ok" ? keys.data.keys : [];
+  // Only keys allowed to call this endpoint can be used here.
+  const connectedKeys = allKeys.filter((key) => key.endpoints.includes(endpointId));
+  const effectiveKeyId = connectedKeys.some((key) => key.id === selectedKeyId)
+    ? selectedKeyId
+    : (connectedKeys[0]?.id ?? "");
 
   useEffect(() => () => abortRef.current?.abort(), []);
 
@@ -305,7 +309,7 @@ export function Playground({ endpoint: endpointId, className }: { endpoint: Play
                 </p>
               ) : connectedKeys.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  You have no active keys.{" "}
+                  {allKeys.length === 0 ? "You have no active keys." : "None of your keys can call this endpoint."}{" "}
                   <Link href="/dashboard/api-keys" className="font-medium text-primary underline underline-offset-4">
                     Create one
                   </Link>
@@ -343,7 +347,7 @@ export function Playground({ endpoint: endpointId, className }: { endpoint: Play
                   type="password"
                   autoComplete="off"
                   spellCheck={false}
-                  placeholder="geo_live_…"
+                  placeholder="geo_…"
                   value={pastedKey}
                   onChange={(event) => setPastedKey(event.target.value)}
                 />

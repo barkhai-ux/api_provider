@@ -30,7 +30,7 @@ _SENSITIVE_KEYS = {
     "x-internal-secret",
 }
 _SECRET_PATTERNS = [
-    (re.compile(r"geo_(live|test|pt)_[A-Za-z0-9]+"), r"geo_\1_[REDACTED]"),
+    (re.compile(r"geo_(?:(?:live|test|pt)_)?[A-Za-z0-9]{16,}"), "geo_[REDACTED]"),
     (re.compile(r"(?i)(bearer\s+)[^\s\"']+"), r"\1[REDACTED]"),
     (re.compile(r"(?i)(token=)[^&\s\"']+"), r"\1[REDACTED]"),
 ]

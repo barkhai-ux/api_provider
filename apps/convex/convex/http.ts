@@ -61,9 +61,11 @@ http.route({
     if (!Number.isFinite(defaultLimit) || defaultLimit < 1) return json({ error: "invalid body" }, 400);
     const clientIp = typeof body.clientIp === "string" ? body.clientIp.slice(0, 64) : undefined;
     const perIpLimit = Number.isFinite(Number(body.perIpLimit)) ? Number(body.perIpLimit) : undefined;
+    const endpoint = typeof body.endpoint === "string" ? body.endpoint.slice(0, 64) : undefined;
     const result = await ctx.runMutation(internal.gateway.authorize, {
       kind,
       hash: body.hash,
+      endpoint,
       defaultLimit,
       clientIp,
       perIpLimit,

@@ -40,7 +40,7 @@ export function ApiKeysView() {
 
   async function handleCreate(values: CreateKeyValues) {
     try {
-      const result = await createKey({ name: values.name, environment: values.environment });
+      const result = await createKey(values);
       setCreateOpen(false);
       setRevealed({ name: values.name, secret: result.secret, regenerated: false });
     } catch (error) {

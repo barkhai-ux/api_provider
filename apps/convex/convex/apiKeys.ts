@@ -3,10 +3,13 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
+import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator } from "./lib/endpoints";
 import { defaultRateLimitPerMinute, requireEnv } from "./lib/env";
 import {
   MAX_ACTIVE_KEYS_PER_USER,
   PLAYGROUND_TOKEN_TTL_MS,
+  cleanEndpoints,
+  cleanExpiresAt,
   cleanKeyName,
   generateApiKey,
   generatePlaygroundToken,
@@ -16,14 +19,14 @@ import {
 import { requireUserId } from "./lib/session";
 import { DAY_MS, utcDay, windowStart } from "./lib/time";
 
-const environment = v.union(v.literal("live"), v.literal("test"));
 const USAGE_LOOKBACK_DAYS = 30;
 
 export type ApiKeySummary = {
   id: Id<"apiKeys">;
   name: string;
   maskedKey: string;
-  environment: "live" | "test";
+  /** Endpoints the key may call. */
+  endpoints: ApiEndpoint[];
   createdAt: number;
   lastUsedAt: number | null;
   expiresAt: number | null;
@@ -38,7 +41,7 @@ function summarize(key: Doc<"apiKeys">, requests: number, thisMinute: number): A
     id: key._id,
     name: key.name,
     maskedKey: maskedKey(key.keyPrefix),
-    environment: key.environment,
+    endpoints: key.endpoints ?? [...API_ENDPOINTS],
     createdAt: key._creationTime,
     lastUsedAt: key.lastUsedAt ?? null,
     expiresAt: key.expiresAt ?? null,
@@ -97,7 +100,8 @@ export const insertKey = internalMutation({
     name: v.string(),
     keyPrefix: v.string(),
     keyHash: v.string(),
-    environment,
+    endpoints: v.array(apiEndpointValidator),
+    expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const active = (
@@ -113,28 +117,40 @@ export const insertKey = internalMutation({
   },
 });
 
-/** Creates a key. The secret is returned once and never stored. */
+/**
+ * Creates a key for the chosen endpoints (default: all) that expires at
+ * expiresAt (Unix ms), or never when it is null or omitted. The secret is
+ * returned once and never stored.
+ */
 export const create = action({
-  args: { name: v.string(), environment: v.optional(environment) },
+  args: {
+    name: v.string(),
+    endpoints: v.optional(v.array(apiEndpointValidator)),
+    expiresAt: v.optional(v.union(v.number(), v.null())),
+  },
   handler: async (ctx, args): Promise<{ id: Id<"apiKeys">; secret: string; maskedKey: string }> => {
     const userId = await requireUserId(ctx);
-    const name = cleanName(args.name);
-    const secret = generateApiKey(args.environment ?? "live");
+    const name = validated(() => cleanKeyName(args.name));
+    const endpoints = validated(() => cleanEndpoints(args.endpoints ?? API_ENDPOINTS));
+    const expiresAt = validated(() => cleanExpiresAt(args.expiresAt ?? null, Date.now()));
+    const secret = generateApiKey();
     const prefix = keyPrefix(secret);
     const id: Id<"apiKeys"> = await ctx.runMutation(internal.apiKeys.insertKey, {
       userId,
       name,
       keyPrefix: prefix,
       keyHash: await hmacSha256Hex(requireEnv("API_KEY_PEPPER"), secret),
-      environment: args.environment ?? "live",
+      endpoints,
+      ...(expiresAt === null ? {} : { expiresAt }),
     });
     return { id, secret, maskedKey: maskedKey(prefix) };
   },
 });
 
-function cleanName(name: string): string {
+/** Runs an input check, turning its message into an error the dashboard shows. */
+function validated<T>(check: () => T): T {
   try {
-    return cleanKeyName(name);
+    return check();
   } catch (error) {
     throw new ConvexError((error as Error).message);
   }
@@ -155,7 +171,7 @@ export const rename = mutation({
   handler: async (ctx, { keyId, name }) => {
     const userId = await requireUserId(ctx);
     await requireOwnedKey(ctx, keyId, userId);
-    await ctx.db.patch(keyId, { name: cleanName(name) });
+    await ctx.db.patch(keyId, { name: validated(() => cleanKeyName(name)) });
   },
 });
 
@@ -174,6 +190,9 @@ export const replaceSecret = internalMutation({
   handler: async (ctx, { keyId, userId, keyPrefix: prefix, keyHash }) => {
     const key = await requireOwnedKey(ctx, keyId, userId);
     if (key.revokedAt !== undefined) throw new ConvexError("A revoked key cannot be regenerated.");
+    if (key.expiresAt !== undefined && key.expiresAt <= Date.now()) {
+      throw new ConvexError("This key has expired. Create a new key instead.");
+    }
     await ctx.db.patch(keyId, { keyPrefix: prefix, keyHash });
   },
 });
@@ -186,7 +205,7 @@ export const regenerate = action({
     const userId = await requireUserId(ctx);
     const key = await ctx.runQuery(internal.apiKeys.ownedKey, { keyId, userId });
     if (key === null) throw new ConvexError("API key not found.");
-    const secret = generateApiKey(key.environment);
+    const secret = generateApiKey();
     const prefix = keyPrefix(secret);
     await ctx.runMutation(internal.apiKeys.replaceSecret, {
       keyId,

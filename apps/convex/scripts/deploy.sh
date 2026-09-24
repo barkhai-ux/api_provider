@@ -3,7 +3,8 @@
 #
 #   Convex Cloud: set CONVEX_DEPLOY_KEY (Dashboard > Settings > Deploy keys),
 #                 or CONVEX_DEPLOYMENT (e.g. dev:happy-otter-123) after
-#                 `npx convex login` on this machine.
+#                 `npx convex login` on this machine. With CONVEX_DEPLOYMENT,
+#                 CONVEX_PROD=true targets the project's production deployment.
 #   Self-hosted:  set CONVEX_SELF_HOSTED_URL plus either
 #                 CONVEX_SELF_HOSTED_ADMIN_KEY or INSTANCE_NAME + INSTANCE_SECRET
 #                 (the admin key is then derived with the backend's generate_key).
@@ -22,6 +23,8 @@ cd "$(dirname "$0")/.."
 ENVIRONMENT="${ENVIRONMENT:-production}"
 
 PUSH=(deploy --yes)
+# Extra flags for `convex env` and `convex run` (selects the production deployment).
+TARGET=()
 if [[ -n "${CONVEX_DEPLOY_KEY:-}" ]]; then
   # The Convex CLI prefers self-hosted settings when present; drop them.
   unset CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
@@ -30,10 +33,15 @@ if [[ -n "${CONVEX_DEPLOY_KEY:-}" ]]; then
 elif [[ -n "${CONVEX_DEPLOYMENT:-}" ]]; then
   unset CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
   export CONVEX_DEPLOYMENT
-  # `convex deploy` always targets the project's production deployment;
-  # development deployments are pushed with `convex dev --once`.
-  [[ "$CONVEX_DEPLOYMENT" == dev:* ]] && PUSH=(dev --once --typecheck try)
-  echo "Target: Convex Cloud ${CONVEX_DEPLOYMENT} (CLI login)"
+  if [[ "${CONVEX_PROD:-false}" == "true" ]]; then
+    # `convex deploy` always targets the project's production deployment.
+    TARGET=(--prod)
+    echo "Target: Convex Cloud production deployment of ${CONVEX_DEPLOYMENT}'s project (CLI login)"
+  else
+    # Development deployments are pushed with `convex dev --once`.
+    [[ "$CONVEX_DEPLOYMENT" == dev:* ]] && PUSH=(dev --once --typecheck try)
+    echo "Target: Convex Cloud ${CONVEX_DEPLOYMENT} (CLI login)"
+  fi
 else
   : "${CONVEX_SELF_HOSTED_URL:?Set CONVEX_DEPLOY_KEY (Convex Cloud) or CONVEX_SELF_HOSTED_URL (self-hosted)}"
   if [[ -z "${CONVEX_SELF_HOSTED_ADMIN_KEY:-}" ]]; then
@@ -51,19 +59,20 @@ else
 fi
 
 convex() { npx --no-install convex "$@"; }
+convex_env() { convex env "$1" "${TARGET[@]}" "${@:2}"; }
 
 # Session signing keys: generated once and kept, so restarts do not sign everyone out.
-if [[ -z "$(convex env get JWT_PRIVATE_KEY 2>/dev/null)" ]]; then
+if [[ -z "$(convex_env get JWT_PRIVATE_KEY 2>/dev/null)" ]]; then
   echo "Generating Convex Auth signing keys..."
   mapfile -t keys < <(node scripts/generate-auth-keys.mjs)
-  convex env set JWT_PRIVATE_KEY -- "${keys[0]}" >/dev/null
-  convex env set JWKS -- "${keys[1]}" >/dev/null
+  convex_env set JWT_PRIVATE_KEY -- "${keys[0]}" >/dev/null
+  convex_env set JWKS -- "${keys[1]}" >/dev/null
 fi
 
 set_env() {
   local name="$1" value="${2:-}"
   if [[ -n "$value" ]]; then
-    convex env set "$name" -- "$value" >/dev/null
+    convex_env set "$name" -- "$value" >/dev/null
   fi
 }
 set_env SITE_URL "$SITE_URL"
@@ -85,9 +94,9 @@ fi
 echo "Deploying Convex functions..."
 convex "${PUSH[@]}"
 
-convex run platform:ensureSiteKey
+convex run "${TARGET[@]}" platform:ensureSiteKey
 if [[ "$ENVIRONMENT" != "production" && "${SEED_DEMO_ACCOUNT:-false}" == "true" ]]; then
   echo "Seeding DEVELOPMENT-ONLY demo account..."
-  convex run platform:seedDevelopment
+  convex run "${TARGET[@]}" platform:seedDevelopment
 fi
 echo "Convex deployment ready."

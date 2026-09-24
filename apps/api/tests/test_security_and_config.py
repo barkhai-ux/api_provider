@@ -18,6 +18,7 @@ def test_hash_matches_hmac_sha256_hex() -> None:
 @pytest.mark.parametrize(
     ("token", "kind"),
     [
+        ("geo_" + "a" * 32, "key"),
         ("geo_live_" + "a" * 32, "key"),
         ("geo_test_" + "Z9" * 16, "key"),
         ("geo_pt_" + "b" * 40, "playground"),
@@ -68,3 +69,13 @@ def test_comma_lists_and_empty_urls() -> None:
     )
     assert settings.cors_origins == ["https://a.example", "https://b.example"]
     assert settings.arcgis_geocoding_feature_server is None
+
+
+def test_logs_redact_api_keys_of_every_format() -> None:
+    from app.core.logging import redact_text
+
+    for secret in ("geo_" + "k" * 32, "geo_live_" + "k" * 32, "geo_test_" + "k" * 32, "geo_pt_" + "k" * 40):
+        redacted = redact_text(f"auth failed for {secret}.")
+        assert "kkkk" not in redacted
+        assert redacted == "auth failed for geo_[REDACTED]."
+    assert redact_text("geo_platform") == "geo_platform"

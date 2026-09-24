@@ -104,7 +104,7 @@
             }
           },
           "403": {
-            "description": "403 API_KEY_REVOKED",
+            "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "example": {
@@ -296,7 +296,7 @@
             }
           },
           "403": {
-            "description": "403 API_KEY_REVOKED",
+            "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "example": {
@@ -513,7 +513,7 @@
             }
           },
           "403": {
-            "description": "403 API_KEY_REVOKED",
+            "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
             "content": {
               "application/json": {
                 "example": {
@@ -785,6 +785,7 @@
               "INVALID_REQUEST",
               "INVALID_API_KEY",
               "API_KEY_REVOKED",
+              "ENDPOINT_NOT_ALLOWED",
               "NOT_FOUND",
               "REQUEST_TIMEOUT",
               "RATE_LIMIT_EXCEEDED",
@@ -1184,7 +1185,7 @@
         "type": "http",
         "description": "Send your API key in the `Authorization` header: `Authorization: Bearer YOUR_API_KEY`.",
         "scheme": "bearer",
-        "bearerFormat": "geo_live_…"
+        "bearerFormat": "geo_…"
       }
     }
   },

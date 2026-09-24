@@ -9,7 +9,8 @@ test("developer registers, creates a key, calls the API, and revokes the key", a
 
   // The secret is never shown again: the list only has the masked form.
   const card = page.getByRole("row", { name: "API key E2E key" });
-  await expect(card).toContainText(/geo_live_[A-Za-z0-9]{4}•+/);
+  await expect(card).toContainText(/geo_[A-Za-z0-9]{4}•+/);
+  await expect(card).toContainText("All endpoints");
   await expect(page.locator("body")).not.toContainText(secret);
 
   // The new key authenticates against the public API. Data endpoints may answer
@@ -38,6 +39,30 @@ test("developer registers, creates a key, calls the API, and revokes the key", a
   });
   expect(revoked.status()).toBe(403);
   expect((await revoked.json()).error.code).toBe("API_KEY_REVOKED");
+});
+
+test("a key only calls the endpoints chosen for it", async ({ page, request }) => {
+  await register(page);
+  const secret = await createKey(page, "Geocoding only", { without: ["Reverse geocoding", "Routing"], expiry: "Never" });
+
+  const row = page.getByRole("row", { name: "API key Geocoding only" });
+  await expect(row).toContainText("Geocoding");
+  await expect(row).toContainText("Never");
+
+  const refused = await request.get(`${API_URL}/v1/route`, {
+    params: { origin: "106.9177,47.9184", destination: "106.9057,47.9220" },
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  expect(refused.status()).toBe(403);
+  const error = (await refused.json()).error;
+  expect(error.code).toBe("ENDPOINT_NOT_ALLOWED");
+  expect(error.details).toEqual({ allowed_endpoints: ["geocode"] });
+
+  const allowed = await request.get(`${API_URL}/v1/geocode`, {
+    params: { q: "Ulaanbaatar" },
+    headers: { Authorization: `Bearer ${secret}` },
+  });
+  expect([200, 503]).toContain(allowed.status());
 });
 
 test("invalid keys get the standard error envelope", async ({ request }) => {

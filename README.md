@@ -51,7 +51,7 @@ flowchart TB
 
     arcgis[("ArcGIS FeatureServer<br/>(internal)")]
 
-    dev -->|"Bearer geo_live_…"| gw
+    dev -->|"Bearer geo_…"| gw
     browser --> pages
     pages --> bff --> gw
     pages -->|"live queries (dashboard)"| Convex
@@ -298,11 +298,17 @@ npm run test:e2e
 
 ## Deployment
 
+For a free deployment on Render (website and API as Docker services, data on Convex Cloud), follow [docs/deploy-render.md](docs/deploy-render.md). It uses the Blueprint in [`render.yaml`](render.yaml).
+
+For your own servers:
+
 1. **Secrets.** Generate strong, unique values for these (for example `openssl rand -hex 32`):
    - `API_KEY_PEPPER`
    - `GATEWAY_SECRET`
    - `CONVEX_INSTANCE_SECRET`
-   - `SITE_API_KEY`: `geo_live_` plus 32 letters and digits.
+   - `SITE_API_KEY`: `geo_` plus 32 letters and digits.
+
+   `node scripts/generate-secrets.mjs` prints all three.
 
    Set `ENVIRONMENT=production`.
 2. **Convex.** Run `convex-backend` behind TLS, for example `convex.YOUR_DOMAIN` for the API and `convex-site.YOUR_DOMAIN` for HTTP actions.
@@ -316,7 +322,7 @@ npm run test:e2e
    - Set `CORS_ORIGINS` to `*`, or to the browser origins you allow.
    - Scale by adding containers; each process holds its own road graph, so memory is roughly graph size × processes.
 5. **Web.** Build the image with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CONVEX_URL` build args, and set `API_INTERNAL_URL`, `CONVEX_URL` and `SITE_API_KEY` at runtime.
-6. **Reverse proxy.** Put a reverse proxy in front of the website that **overwrites** `X-Forwarded-For` with the client address. The per-visitor limit for the public map depends on it.
+6. **Reverse proxy.** Put a reverse proxy in front of the website that **overwrites** `X-Forwarded-For` with the client address, or set `CLIENT_IP_HEADER` to a single-IP header your proxy sets. The per-visitor limit for the public map depends on it.
 7. **Private network.** Keep `/gateway/*` reachable only by the API if you can. It is protected by `GATEWAY_SECRET` either way.
 
 ## Security

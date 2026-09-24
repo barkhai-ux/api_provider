@@ -10,7 +10,9 @@ import hashlib
 import hmac
 import re
 
-API_KEY_PATTERN = re.compile(r"^geo_(live|test)_[A-Za-z0-9]{32}$")
+# geo_ + 32 letters/digits. Keys created before keys had a single type carry a
+# geo_live_ or geo_test_ prefix and keep working.
+API_KEY_PATTERN = re.compile(r"^geo_(?:(?:live|test)_)?[A-Za-z0-9]{32}$")
 PLAYGROUND_TOKEN_PATTERN = re.compile(r"^geo_pt_[A-Za-z0-9]{40}$")
 
 

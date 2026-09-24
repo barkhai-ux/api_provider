@@ -18,7 +18,9 @@ COPY --from=deps /opt/venv /opt/venv
 COPY app ./app
 ENV PATH="/opt/venv/bin:$PATH"
 USER app
+ENV PORT=8000
 EXPOSE 8000
 # One worker per container keeps the in-memory road graph single-copy; scale
 # with more containers. --proxy-headers only matters behind a trusted proxy.
-CMD ["uvicorn", "app.asgi:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers", "--timeout-graceful-shutdown", "20"]
+# PORT is set by hosts such as Render (10000 there); 8000 otherwise.
+CMD ["sh", "-c", "exec uvicorn app.asgi:app --host 0.0.0.0 --port \"$PORT\" --no-access-log --proxy-headers --timeout-graceful-shutdown 20"]

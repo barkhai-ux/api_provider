@@ -39,4 +39,6 @@ COPY --from=build --chown=node:node /repo/apps/web/.next/static ./apps/web/.next
 COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 USER node
 EXPOSE 3000
-CMD ["node", "apps/web/server.js"]
+# PORT may be overridden by the host (Render sets 10000). HOSTNAME is forced to
+# 0.0.0.0 at start because some platforms set it to the container's name.
+CMD ["sh", "-c", "HOSTNAME=0.0.0.0 exec node apps/web/server.js"]

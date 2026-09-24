@@ -101,6 +101,42 @@ async def test_expired_key(client: httpx.AsyncClient) -> None:
     assert error_of(response)["details"] == {"reason": "expired"}
 
 
+async def test_single_type_key_is_accepted(
+    client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
+) -> None:
+    key = "geo_" + "N" * 32
+    convex.add_key(key)
+    arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
+    response = await client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))
+    assert response.status_code == 200
+
+
+async def test_endpoint_is_sent_to_convex(
+    client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
+) -> None:
+    arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
+    await client.get("/v1/geocode", params={"q": "sukh"}, headers=auth())
+    await client.get("/v1/reverse-geocode", params={"lat": 47.9, "lon": 106.9}, headers=auth())
+    assert [call["endpoint"] for call in convex.authorize_calls] == ["geocode", "reverse-geocode"]
+
+
+async def test_key_limited_to_other_endpoints_is_refused(
+    app, client: httpx.AsyncClient, convex: ConvexFake
+) -> None:
+    key = "geo_" + "G" * 32
+    convex.add_key(key, endpoints=["geocode"])
+    response = await client.get(
+        "/v1/route", params={"origin": "106.91,47.91", "destination": "106.92,47.92"}, headers=auth(key)
+    )
+    assert response.status_code == 403
+    error = error_of(response)
+    assert error["code"] == "ENDPOINT_NOT_ALLOWED"
+    assert error["details"] == {"allowed_endpoints": ["geocode"]}
+    # The refusal is attributable, so it shows up in the developer's usage.
+    await app.state.recorder.flush()
+    assert [(u["endpoint"], u["statusCode"]) for u in convex.usage] == [("/v1/route", 403)]
+
+
 async def test_only_the_hash_is_sent_to_convex(
     client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
 ) -> None:

@@ -7,6 +7,7 @@ const internalHosts = [process.env.ARCGIS_GEOCODE_SERVER, process.env.ARCGIS_ROU
   .filter((url): url is string => Boolean(url))
   .map((url) => new RegExp(new URL(url).host.replace(/\./g, "\\.")));
 const FORBIDDEN = [
+  /\bgeo_[A-Za-z0-9]{32}\b/,
   /geo_live_[A-Za-z0-9]{32}/,
   /geo_test_[A-Za-z0-9]{32}/,
   /FeatureServer|GeocodeServer|NAServer/,

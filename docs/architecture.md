@@ -49,7 +49,7 @@ flowchart LR
 
 ### API key lifecycle
 
-- **Create or regenerate.** A Convex action generates `geo_live_` or `geo_test_` plus 32 base62 characters with `crypto.getRandomValues`. It stores `HMAC-SHA256(API_KEY_PEPPER, key)` and the display prefix, and returns the secret once. Regenerate swaps the hash in place.
+- **Create or regenerate.** A Convex action generates `geo_` plus 32 base62 characters with `crypto.getRandomValues`. It stores `HMAC-SHA256(API_KEY_PEPPER, key)`, the display prefix, the endpoints the key may call and its expiry time (none for a key that never expires), and returns the secret once. Regenerate swaps the hash in place and keeps the endpoints and expiry. Keys from before the single key type carry a `geo_live_` or `geo_test_` prefix; they keep working.
 - **Revoke.** Sets `revokedAt`. The next request with that key gets `403 API_KEY_REVOKED`.
 
 ### Authenticating a `/v1` request
@@ -59,6 +59,7 @@ flowchart LR
 3. Convex runs one mutation that:
    - looks up the key by hash;
    - checks revocation and expiry;
+   - checks that the key may call the requested endpoint (otherwise `403 ENDPOINT_NOT_ALLOWED`, not counted against the rate limit);
    - increments the fixed one-minute window (per key, or per visitor IP for the site key);
    - returns the principal and the limit state.
 4. The gateway sets `X-RateLimit-*` on every `/v1` response, errors included. It returns `429` with `Retry-After` when the limit is exceeded, and `503` if Convex is unreachable.

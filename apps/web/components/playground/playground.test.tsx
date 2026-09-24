@@ -8,7 +8,7 @@ import { Playground } from "./playground";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/developers/api-reference" }));
 
-const API_KEY = "geo_test_abcdefghijklmnopqrstuvwxyz123456";
+const API_KEY = "geo_abcdefghijklmnopqrstuvwxyz123456";
 const PLAYGROUND_TOKEN = `geo_pt_${"x".repeat(40)}`;
 
 function wrapper({ children }: { children: ReactNode }) {
@@ -87,7 +87,7 @@ describe("Playground", () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === "/api/playground/keys") {
-        return json({ keys: [{ id: "key_1", name: "Backend", maskedKey: "geo_live_ab12••••", environment: "live" }] });
+        return json({ keys: [{ id: "key_1", name: "Backend", maskedKey: "geo_ab12••••", endpoints: ["geocode", "reverse-geocode", "route"] }] });
       }
       if (url === "/api/playground/token") {
         expect(JSON.parse(String(init?.body))).toEqual({ keyId: "key_1" });

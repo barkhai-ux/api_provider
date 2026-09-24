@@ -132,12 +132,14 @@ class ConvexFake:
         limit: int | None = None,
         site: bool = False,
         kind: str = "key",
+        endpoints: list[str] | None = None,
     ) -> None:
         self.keys[hash_credential(secret, PEPPER)] = {
             "status": status,
             "limit": limit,
             "site": site,
             "kind": kind,
+            "endpoints": endpoints,
             "keyId": f"key_{secret[-4:]}",
             "userId": "user_1",
         }
@@ -160,6 +162,15 @@ class ConvexFake:
             "isSiteKey": key["site"],
             "viaPlayground": data["kind"] == "playground",
         }
+        if key["endpoints"] is not None and data.get("endpoint") not in key["endpoints"]:
+            return httpx.Response(
+                200,
+                json={
+                    "status": "endpoint_not_allowed",
+                    "principal": principal,
+                    "allowedEndpoints": key["endpoints"],
+                },
+            )
         if key["site"] and "clientIp" in data:
             bucket, limit = f"ip:{data['clientIp']}", data["perIpLimit"]
         else:
