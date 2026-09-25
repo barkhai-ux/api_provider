@@ -249,6 +249,7 @@ No new vulnerability. The route 502 is the known ArcGIS portal-permission gap (H
 - **XSS impact:** the Convex Auth library keeps the access JWT in `localStorage`, so the nonce CSP is the main barrier against script injection.
 - **DNS:** configured upstream host names are not pinned. A DNS hijack could redirect gateway traffic; restrict egress on self-hosted hosts.
 - **Per-instance limits:** in-memory limits are per instance. Scaling out multiplies them; Convex-backed limits are shared.
+- **Authorization cache (`AUTH_CACHE_TTL_SECONDS`, default 15s):** when enabled, a valid API key's limits and scopes are cached in the API and rate limiting is enforced locally, to skip the ~250ms Convex round-trip. Trade-offs: revocation, expiry and account-disable take effect within the TTL (not instantly), and rate limits become per API instance. Rate limiting stays exact per instance (every request is counted; only the key's static metadata is cached). The negative (known-bad) cache, pre-auth failed-attempt limiter, key hashing and playground-token handling are unchanged; playground tokens are never cached. Set `0` for instant revocation, or keep it small when running more than one instance. Convex remains the source of truth.
 - **Not verified on the target platforms:**
   - The Render edge headers and limits.
   - The RHEL host configuration on a real host (nginx, Quadlet and systemd files are syntax- and policy-checked only).

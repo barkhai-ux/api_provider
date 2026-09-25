@@ -82,6 +82,7 @@ Each row: threat → attack path → mitigation (code) → residual risk → tes
 | T | Writing usage into another tenant | Owner taken from the key; endpoint/method/status/time validated | none known | `gateway.test.ts` recordUsage |
 | I | IDOR on keys and usage | Every public function checks an active session and ownership | none known | `authorization.test.ts` |
 | D | Table growth (tokens, keys, requests) | Caps per user/key; self-rescheduling retention job | `usageDaily` kept indefinitely (aggregates) | `authorization.test.ts` |
+| I | Revoked/expired key still accepted briefly | The gateway may cache a key's validity for `AUTH_CACHE_TTL_SECONDS` (default 15s) to skip the Convex round-trip (`deps.py` `_authorize_cached`, Convex `gateway:describe`) | revocation/expiry/disable lag ≤ TTL; rate limits per instance; set 0 for instant | `tests/security/test_auth_cache.py` |
 | E | Using a session after sign-out or password change | Session row checked on every call, not only the JWT | none known | `authorization.test.ts` sessions |
 
 ### B5 FastAPI → ArcGIS
