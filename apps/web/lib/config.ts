@@ -12,7 +12,7 @@ export const publicConfig = {
 } as const;
 
 export const siteConfig = {
-  name: "Geo Platform",
+  name: "Ubhub Location Service",
   description: "Geocoding, reverse geocoding and routing APIs for Mongolia.",
   /** Where the map opens: central Ulaanbaatar. */
   defaultCenter: [106.9177, 47.9184] as [number, number],

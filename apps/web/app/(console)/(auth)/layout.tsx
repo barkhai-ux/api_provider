@@ -21,7 +21,7 @@ export default function AuthLayout({ children }: LayoutProps<"/">) {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_60%_30%,var(--glow),transparent_70%)]"
         />
         <div className="relative max-w-lg">
-          <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">Geo Platform</p>
+          <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">Ubhub Location Service</p>
           <h2 className="mt-4 text-4xl leading-[1.1] font-bold">Location APIs for Mongolia</h2>
           <ul className="mt-8 flex flex-col gap-3">
             {POINTS.map((point) => (

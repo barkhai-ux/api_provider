@@ -2,6 +2,7 @@
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useT } from "@/lib/i18n/provider";
 import { LoaderCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,7 @@ export function ForgotPasswordForm() {
   const { signIn } = useAuthActions();
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
+  const t = useT();
   const form = useForm<ForgotPasswordValues>({
     resolver: zodResolver(forgotPasswordSchema),
     defaultValues: { email: "" },
@@ -42,11 +44,11 @@ export function ForgotPasswordForm() {
 
   return (
     <AuthCard
-      title="Reset your password"
-      description="Enter your account email. We will send you an 8-digit code to set a new password."
+      title={t("auth.forgot.title")}
+      description={t("auth.forgot.description")}
       footer={
         <Link href="/login" className="font-medium text-primary underline-offset-4 hover:underline">
-          Back to sign in
+          {t("auth.forgot.back")}
         </Link>
       }
     >
@@ -54,7 +56,7 @@ export function ForgotPasswordForm() {
         <FieldGroup>
           <FormAlert message={formError} />
           <Field data-invalid={!!errors.email}>
-            <FieldLabel htmlFor="forgot-email">Email</FieldLabel>
+            <FieldLabel htmlFor="forgot-email">{t("auth.forgot.email")}</FieldLabel>
             <Input
               id="forgot-email"
               type="email"
@@ -67,7 +69,7 @@ export function ForgotPasswordForm() {
           </Field>
           <Button type="submit" size="xl" className="w-full" disabled={isSubmitting}>
             {isSubmitting && <LoaderCircle className="animate-spin" aria-hidden="true" />}
-            Send reset code
+            {t("auth.forgot.submit")}
           </Button>
         </FieldGroup>
       </form>

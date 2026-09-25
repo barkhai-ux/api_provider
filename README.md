@@ -1,4 +1,4 @@
-# Geo Platform
+# Ubhub Location Service
 
 Geocoding, reverse geocoding and routing APIs for Mongolia, with a public map, a developer portal, documentation, an in-browser API playground and a live usage dashboard.
 

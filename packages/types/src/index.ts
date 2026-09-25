@@ -1,5 +1,5 @@
 /**
- * Public API types for Geo Platform `/v1`, generated from the OpenAPI schema
+ * Public API types for Ubhub Location Service `/v1`, generated from the OpenAPI schema
  * (`openapi.json`, exported by the API). Regenerate with `npm run generate:types`.
  */
 import type { components, operations, paths } from "./openapi";

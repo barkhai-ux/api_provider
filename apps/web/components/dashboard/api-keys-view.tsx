@@ -18,9 +18,11 @@ import { CreateKeyDialog, type CreateKeyValues } from "./create-key-dialog";
 import { EmptyState } from "./empty-state";
 import { OneTimeSecretDialog } from "./one-time-secret-dialog";
 import { PageHeader } from "./page-header";
+import { useT } from "@/lib/i18n/provider";
 import { RenameKeyDialog } from "./rename-key-dialog";
 
 export function ApiKeysView() {
+  const t = useT();
   const keys = useConsoleQuery(api.apiKeys.list, {});
   const createKey = useAction(api.apiKeys.create);
   const regenerateKey = useAction(api.apiKeys.regenerate);
@@ -88,11 +90,11 @@ export function ApiKeysView() {
   return (
     <>
       <PageHeader
-        title="API keys"
-        description="Keys authenticate your requests. Send one in the Authorization header: Bearer YOUR_API_KEY."
+        title={t("dashboard.apiKeys.title")}
+        description={t("dashboard.apiKeys.subtitle")}
         actions={
           <Button size="pill" className="h-10 px-5" onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden="true" /> Create API key
+            <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
           </Button>
         }
       />
@@ -109,7 +111,7 @@ export function ApiKeysView() {
           description="Create a key to start calling the geocoding, reverse geocoding and routing APIs."
           action={
             <Button onClick={() => setCreateOpen(true)}>
-              <Plus aria-hidden="true" /> Create API key
+              <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
             </Button>
           }
         />

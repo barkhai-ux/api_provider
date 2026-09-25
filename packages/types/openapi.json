@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Geo Platform API",
+    "title": "Ubhub Location Service API",
     "description": "\nGeocoding, reverse geocoding and routing for Mongolia.\n\n**Authentication.** Every `/v1` request needs an API key in the `Authorization` header:\n`Authorization: Bearer YOUR_API_KEY`. Create keys in the developer console.\n\n**Errors.** Every error uses one envelope:\n`{\"error\": {\"code\": \"INVALID_REQUEST\", \"message\": \"...\", \"details\": {...}}}`.\n\n**Rate limits.** Each key has a per-minute limit (100 by default). Every response carries\n`X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`.\n\n**Versioning.** `/v1` never receives breaking changes. New optional fields may be added to responses.\n",
     "version": "1.0.0"
   },

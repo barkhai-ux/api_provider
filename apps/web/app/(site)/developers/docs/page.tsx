@@ -17,7 +17,7 @@ export default function DocsIntroductionPage() {
       href="/developers/docs"
       eyebrow="Documentation"
       title="Introduction"
-      description="Geo Platform offers three HTTP APIs for location-aware applications in Mongolia: geocoding, reverse geocoding and routing."
+      description="Ubhub Location Service offers three HTTP APIs for location-aware applications in Mongolia: geocoding, reverse geocoding and routing."
       toc={DOCS_TOC.introduction}
     >
       <H2 id="what-you-can-build">What you can build</H2>

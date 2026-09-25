@@ -13,6 +13,7 @@ const COMMON = new Set([
   "changeme123", "administrator", "admin123456", "abcdefghij", "abcd123456", "abc1234567",
   "a1b2c3d4e5", "qazwsxedcrfv", "mongolia123", "ulaanbaatar", "ulaanbaatar1", "ulaanbaatar123",
   "geoplatform", "geoplatform1", "geoplatform123",
+  "ubhub", "ubhubdev", "ubhubdev1", "ubhubdev123", "ubhublocation", "ubhublocationservice", "monmap", "monmap123",
 ]);
 
 const SEQUENCES = ["0123456789012345", "9876543210987654", "abcdefghijklmnopqrstuvwxyz", "qwertyuiopasdfghjklzxcvbnm"];

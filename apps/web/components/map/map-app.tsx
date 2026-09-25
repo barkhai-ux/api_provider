@@ -11,6 +11,7 @@ import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 import { publicConfig, siteConfig } from "@/lib/config";
 import { formatCoordinate } from "@/lib/format";
 import { siteGeoClient } from "@/lib/geo";
+import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { CameraRequest, LngLatTuple, MapMarker, MapPopup } from "./map-view";
 import { RoutePanel, type RouteEndpoint } from "./route-panel";
@@ -55,6 +56,7 @@ function routeBounds(route: RouteResponse): [LngLatTuple, LngLatTuple] | null {
 }
 
 export function MapApp() {
+  const t = useT();
   const isDesktop = useMediaQuery("(min-width: 768px)");
   const reducedMotion = usePrefersReducedMotion();
 
@@ -150,11 +152,11 @@ export function MapApp() {
       title,
       lines,
       actions: [
-        { label: "Directions from here", onSelect: () => setEndpoint("from", { text: title, lngLat }) },
-        { label: "Directions to here", onSelect: () => setEndpoint("to", { text: title, lngLat }) },
+        { label: t("map.directionsFromHere"), onSelect: () => setEndpoint("from", { text: title, lngLat }) },
+        { label: t("map.directionsToHere"), onSelect: () => setEndpoint("to", { text: title, lngLat }) },
       ],
     }),
-    [setEndpoint],
+    [setEndpoint, t],
   );
 
   const selectPlace = useCallback(
@@ -296,8 +298,8 @@ export function MapApp() {
 
   const searchBox = (
     <SearchBox
-      label="Search location"
-      placeholder="Search places in Mongolia"
+      label={t("map.searchLabel")}
+      placeholder={t("map.searchPlaceholder")}
       size="lg"
       inlineResults={!isDesktop}
       text={searchText}
@@ -312,7 +314,7 @@ export function MapApp() {
 
   return (
     <div className="theme-dark relative h-full w-full overflow-hidden bg-muted text-foreground">
-      <h1 className="sr-only">Geo Platform map</h1>
+      <h1 className="sr-only">{t("map.title")}</h1>
       <MapView
         styleUrl={publicConfig.mapStyleUrl}
         initialCenter={siteConfig.defaultCenter}
@@ -331,7 +333,7 @@ export function MapApp() {
 
       {styleError && (
         <div role="alert" className="absolute inset-x-3 top-20 z-20 mx-auto max-w-md rounded-xl border bg-background p-3 text-sm shadow-lg">
-          The basemap could not be loaded. Search and routing still work; check your connection or the map style URL.
+          {t("map.basemapError")}
         </div>
       )}
 
@@ -351,9 +353,9 @@ export function MapApp() {
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="directions-heading" className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
-                Directions
+                {t("map.directions")}
               </h2>
-              <Button variant="ghost" size="icon-sm" onClick={() => setDirectionsOpen(false)} aria-label="Hide route panel">
+              <Button variant="ghost" size="icon-sm" onClick={() => setDirectionsOpen(false)} aria-label={t("map.hideRoute")}>
                 <X />
               </Button>
             </div>
@@ -361,7 +363,7 @@ export function MapApp() {
           </section>
         ) : (
           <Button size="pill" className="absolute top-3 right-3 z-10 h-10 px-5 shadow-lg" onClick={openDirections}>
-            <Navigation /> Directions
+            <Navigation /> {t("map.directions")}
           </Button>
         ))}
 
@@ -369,7 +371,7 @@ export function MapApp() {
       {!isDesktop && (
         <section
           ref={sheetRef}
-          aria-label="Search and directions"
+          aria-label={t("map.searchAndDirections")}
           className={cn(
             "absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl border-t bg-background shadow-[0_-4px_16px_rgb(0_0_0/0.08)]",
             sheetExpanded ? "max-h-[75dvh]" : "max-h-[45dvh]",
@@ -379,7 +381,7 @@ export function MapApp() {
             type="button"
             onClick={() => setSheetExpanded((value) => !value)}
             aria-expanded={sheetExpanded}
-            aria-label={sheetExpanded ? "Collapse panel" : "Expand panel"}
+            aria-label={sheetExpanded ? t("map.collapse") : t("map.expand")}
             className="flex w-full items-center justify-center py-2 text-muted-foreground"
           >
             <span className="h-1.5 w-10 rounded-full bg-border" aria-hidden="true" />
@@ -403,7 +405,7 @@ export function MapApp() {
                   )}
                 >
                   {tab === "search" ? <Search className="size-4" /> : <Navigation className="size-4" />}
-                  {tab === "search" ? "Search" : "Directions"}
+                  {tab === "search" ? t("map.search") : t("map.directions")}
                 </button>
               ))}
             </div>

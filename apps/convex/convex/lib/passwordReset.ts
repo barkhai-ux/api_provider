@@ -28,7 +28,7 @@ export const PasswordReset = Email({
   },
   async sendVerificationRequest({ identifier: email, token }) {
     const backend = process.env.EMAIL_BACKEND ?? "console";
-    const subject = "Your Geo Platform password reset code";
+    const subject = "Your Ubhub Location Service password reset code";
     const text =
       `Your password reset code is ${token}.\n\n` +
       `It expires in ${CODE_TTL_SECONDS / 60} minutes. If you did not ask to reset your password, ignore this email.`;
@@ -40,7 +40,7 @@ export const PasswordReset = Email({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: process.env.EMAIL_FROM ?? "Geo Platform <no-reply@example.com>",
+          from: process.env.EMAIL_FROM ?? "Ubhub Location Service <no-reply@example.com>",
           to: [email],
           subject,
           text,

@@ -47,7 +47,7 @@ EMAIL_BACKEND=console \
 - `CONVEX_PROD=true` pushes to the project's production deployment and sets its environment variables there. The development deployment is not touched.
 - `ENVIRONMENT` defaults to `production`, so no demo account is seeded.
 - The script registers `SITE_API_KEY` and generates the session signing keys once.
-- **Email.** Production refuses `EMAIL_BACKEND=console`, so with the command above sign-up and sign-in work but password-reset emails fail. To enable them, create a [Resend](https://resend.com) account and run the command with `EMAIL_BACKEND=resend RESEND_API_KEY=... EMAIL_FROM="Geo Platform <noreply@your-domain>"` instead.
+- **Email.** Production refuses `EMAIL_BACKEND=console`, so with the command above sign-up and sign-in work but password-reset emails fail. To enable them, create a [Resend](https://resend.com) account and run the command with `EMAIL_BACKEND=resend RESEND_API_KEY=... EMAIL_FROM="Ubhub Location Service <noreply@your-domain>"` instead.
 
 Note the two production URLs from the Convex Dashboard (production deployment > Settings > URL & Deploy Key):
 

@@ -1,0 +1,210 @@
+{
+  "nav": {
+    "map": "Map",
+    "developers": "Developers",
+    "documentation": "Documentation",
+    "apiReference": "API reference"
+  },
+  "authNav": {
+    "signIn": "Sign in",
+    "getApiKey": "Get API key",
+    "dashboard": "Dashboard",
+    "account": "Account settings",
+    "documentation": "Documentation",
+    "signOut": "Sign out",
+    "accountMenu": "Account menu",
+    "openMenu": "Open menu",
+    "menu": "Menu",
+    "developer": "Developer"
+  },
+  "language": {
+    "label": "Language",
+    "english": "English",
+    "mongolian": "Монгол",
+    "switchTo": "Switch to {lang}"
+  },
+  "footer": {
+    "rights": "© {year} Monmap LLC · Ubhub Location Service",
+    "attribution": "Basemap © Esri and contributors · Data from the platform's ArcGIS services"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "create": "Create",
+    "save": "Save",
+    "delete": "Delete",
+    "done": "Done",
+    "copy": "Copy",
+    "download": "Download",
+    "close": "Close",
+    "back": "Back",
+    "retry": "Retry",
+    "loading": "Loading",
+    "search": "Search"
+  },
+  "map": {
+    "title": "Ubhub Location Service map",
+    "searchLabel": "Search location",
+    "searchPlaceholder": "Search places in Mongolia",
+    "directions": "Directions",
+    "hideRoute": "Hide route panel",
+    "search": "Search",
+    "from": "From",
+    "to": "To",
+    "startPlaceholder": "Choose a start",
+    "destinationPlaceholder": "Choose a destination",
+    "driving": "Driving",
+    "walking": "Walking",
+    "useMyLocation": "Use my location",
+    "calculate": "Get directions",
+    "swap": "Swap start and destination",
+    "clear": "Clear",
+    "basemapError": "The basemap could not be loaded. Search and routing still work; check your connection or the map style URL.",
+    "mode": "Mode",
+    "calculateRoute": "Calculate route",
+    "clearRoute": "Clear route",
+    "useMyLocationAsStart": "Use my location as start",
+    "directionsFromHere": "Directions from here",
+    "directionsToHere": "Directions to here",
+    "collapse": "Collapse panel",
+    "expand": "Expand panel",
+    "searchAndDirections": "Search and directions",
+    "travelMode": "Travel mode"
+  },
+  "auth": {
+    "login": {
+      "title": "Sign in",
+      "subtitle": "Sign in to your developer account.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in",
+      "forgot": "Forgot password?",
+      "noAccount": "No account yet?",
+      "signUp": "Create one",
+      "description": "Manage your API keys and see your usage."
+    },
+    "register": {
+      "title": "Create your developer account",
+      "subtitle": "Get an API key for geocoding, reverse geocoding and routing.",
+      "name": "Name",
+      "email": "Email",
+      "password": "Password",
+      "passwordHint": "At least 10 characters.",
+      "submit": "Create account",
+      "haveAccount": "Already have an account?",
+      "signIn": "Sign in",
+      "description": "Get an API key for geocoding, reverse geocoding and routing."
+    },
+    "forgot": {
+      "title": "Reset your password",
+      "subtitle": "We will email you a code to reset your password.",
+      "email": "Email",
+      "submit": "Send reset code",
+      "back": "Back to sign in",
+      "sent": "If an account exists for that email, a reset code is on its way.",
+      "description": "Enter your account email. We will send you an 8-digit code to set a new password.",
+      "codeSent": "Password updated. Other sessions were signed out."
+    },
+    "reset": {
+      "title": "Set a new password",
+      "subtitle": "Enter the code we emailed you and choose a new password.",
+      "email": "Email",
+      "code": "Code",
+      "newPassword": "New password",
+      "confirmPassword": "Confirm new password",
+      "submit": "Change password",
+      "back": "Back to sign in",
+      "title2": "Choose a new password",
+      "description": "Enter the code from the email and your new password.",
+      "sendNew": "Send a new one",
+      "updated": "Password updated. Other sessions were signed out."
+    },
+    "errors": {
+      "generic": "Something went wrong. Please try again.",
+      "network": "Could not reach the server. Check your connection and try again.",
+      "invalidCredentials": "The email or password is incorrect.",
+      "tooManyAttempts": "Too many failed attempts. Wait a few minutes and try again.",
+      "accountExists": "An account with this email already exists. Sign in instead.",
+      "invalidCode": "That code is invalid or has expired. Request a new code and try again."
+    }
+  },
+  "dashboard": {
+    "nav": {
+      "home": "Home",
+      "apiKeys": "API keys",
+      "usage": "Usage",
+      "apiPlayground": "API playground",
+      "docs": "Docs",
+      "map": "Map",
+      "settings": "Settings"
+    },
+    "home": {
+      "welcome": "Welcome, {name}",
+      "overview": "Overview",
+      "subtitle": "Your API traffic at a glance. Days and months are in UTC.",
+      "manageKeys": "Manage API keys",
+      "requestsToday": "Requests today",
+      "requestsMonth": "Requests this month",
+      "successful": "Successful requests",
+      "failed": "Failed requests",
+      "rateLimit": "Current rate limit",
+      "activeKeys": "Active API keys",
+      "requests30d": "Requests, last 30 days",
+      "recent": "Recent requests",
+      "successfulContext": "{percent} of this month's requests",
+      "failedContext": "4xx and 5xx responses this month, including rate limits",
+      "rateLimitContext": "Per API key, unless a key has its own limit",
+      "revokedContext": "{count} revoked",
+      "emptyTitle": "Create your first API key",
+      "emptyDesc": "Create a key, then send it in the Authorization header of every request.",
+      "createKey": "Create API key"
+    },
+    "apiKeys": {
+      "title": "API keys",
+      "subtitle": "Keys authenticate your requests. Send one in the Authorization header: Bearer YOUR_API_KEY.",
+      "create": "Create API key",
+      "colName": "Name",
+      "colKey": "API key",
+      "colEndpoints": "Endpoints",
+      "colLimit": "Limit",
+      "colUsage": "Usage, 30 days",
+      "colExpires": "Expires",
+      "created": "Created {date}",
+      "never": "Never",
+      "expired": "Expired",
+      "allEndpoints": "All endpoints",
+      "rename": "Rename",
+      "regenerate": "Regenerate secret",
+      "revoke": "Revoke",
+      "actionsFor": "Actions for {name}"
+    },
+    "usage": {
+      "title": "Usage",
+      "subtitle": "Requests made with your API keys. Days are UTC calendar days.",
+      "period": "Period",
+      "apiKey": "API key",
+      "allKeys": "All keys",
+      "days7": "7 days",
+      "days30": "30 days",
+      "days90": "90 days"
+    },
+    "settings": {
+      "title": "Settings",
+      "subtitle": "Your developer account."
+    }
+  },
+  "developers": {
+    "hero": {
+      "badge": "API v1",
+      "title": "Location APIs for Mongolia",
+      "subtitle": "Search places, turn coordinates into addresses and calculate routes with one API key. Built on local data, in Latin and Cyrillic.",
+      "getStarted": "Get started for free",
+      "readDocs": "Read the docs"
+    },
+    "cta": {
+      "title": "Start building today",
+      "subtitle": "Create an account, get a key and make your first request.",
+      "getStarted": "Get started for free",
+      "apiReference": "API reference"
+    }
+  }
+}

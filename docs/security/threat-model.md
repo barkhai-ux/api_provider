@@ -1,6 +1,6 @@
 # Threat model
 
-STRIDE analysis of the Geo Platform as deployed on Render (website and API as containers, Convex Cloud, ArcGIS services) or self-hosted behind nginx. Findings and their status are in [`SECURITY_REPORT.md`](../../SECURITY_REPORT.md).
+STRIDE analysis of the Ubhub Location Service as deployed on Render (website and API as containers, Convex Cloud, ArcGIS services) or self-hosted behind nginx. Findings and their status are in [`SECURITY_REPORT.md`](../../SECURITY_REPORT.md).
 
 ## System and trust boundaries
 

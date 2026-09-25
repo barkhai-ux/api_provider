@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     # A missing ENVIRONMENT is treated as production so that a forgotten
     # variable fails closed (strict secret checks) instead of open.
     environment: Environment = Environment.PRODUCTION
-    app_name: str = "Geo Platform API"
+    app_name: str = "Ubhub Location Service API"
     log_level: str = "INFO"
     public_api_url: str = "http://localhost:8000"
 

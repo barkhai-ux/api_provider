@@ -13,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useConsoleQuery, useStableValue } from "@/hooks/use-console-query";
 import { EndpointTable } from "./endpoint-table";
 import { PageHeader } from "./page-header";
+import { useT } from "@/lib/i18n/provider";
 import { RecentRequestsTable } from "./recent-requests-table";
 import { RequestsChart } from "./requests-chart";
 
@@ -22,6 +23,7 @@ const ALL_KEYS = "all";
 const PAGE_SIZE = 25;
 
 export function UsageView() {
+  const t = useT();
   const { isAuthenticated } = useConvexAuth();
   const [days, setDays] = useState<Range>(30);
   const [keyFilter, setKeyFilter] = useState<string>(ALL_KEYS);
@@ -37,7 +39,7 @@ export function UsageView() {
 
   return (
     <>
-      <PageHeader title="Usage" description="Requests made with your API keys. Days are UTC calendar days." />
+      <PageHeader title={t("dashboard.usage.title")} description={t("dashboard.usage.subtitle")} />
 
       <div className="mb-6 flex flex-wrap items-end gap-4" role="group" aria-label="Filters">
         <div className="grid gap-2">

@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import type { ComponentProps, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
+import { TestI18n } from "@/test/i18n";
 import { RoutePanel } from "./route-panel";
 
 const route: RouteResponse = {
@@ -35,7 +36,9 @@ function renderPanel(overrides: Partial<ComponentProps<typeof RoutePanel>> = {})
   };
   const client = new QueryClient();
   const wrapper = ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    <QueryClientProvider client={client}>
+      <TestI18n>{children}</TestI18n>
+    </QueryClientProvider>
   );
   render(<RoutePanel {...props} />, { wrapper });
   return props;

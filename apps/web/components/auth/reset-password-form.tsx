@@ -2,6 +2,7 @@
 
 import { useAuthActions } from "@convex-dev/auth/react";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useT } from "@/lib/i18n/provider";
 import { useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, Mail } from "lucide-react";
 import Link from "next/link";
@@ -13,7 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { authErrorMessage } from "@/lib/auth-errors";
+import { localizedAuthError } from "@/lib/auth-errors";
 import { AuthCard } from "./auth-card";
 import { FormAlert } from "./form-alert";
 import { PasswordInput } from "./password-input";
@@ -26,6 +27,7 @@ export function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const sent = searchParams.get("sent") === "1";
   const [formError, setFormError] = useState<string | null>(null);
+  const t = useT();
   const form = useForm<ResetPasswordValues>({
     resolver: zodResolver(resetPasswordSchema),
     defaultValues: { email: searchParams.get("email") ?? "", code: "", newPassword: "", confirmPassword: "" },
@@ -41,24 +43,24 @@ export function ResetPasswordForm() {
         newPassword: values.newPassword,
         flow: "reset-verification",
       });
-      toast.success("Password updated. Other sessions were signed out.");
+      toast.success(t("auth.reset.updated"));
       await queryClient.invalidateQueries({ queryKey: ["session"] });
       router.replace("/dashboard");
       router.refresh();
     } catch (error) {
-      setFormError(authErrorMessage(error));
+      setFormError(localizedAuthError(error, t));
     }
   }
 
   return (
     <AuthCard
-      title="Choose a new password"
-      description="Enter the code from the email and your new password."
+      title={t("auth.reset.title2")}
+      description={t("auth.reset.description")}
       footer={
         <span>
           No code?{" "}
           <Link href="/forgot-password" className="font-medium text-primary underline-offset-4 hover:underline">
-            Send a new one
+            {t("auth.reset.sendNew")}
           </Link>
         </span>
       }
@@ -75,7 +77,7 @@ export function ResetPasswordForm() {
           )}
           <FormAlert message={formError} />
           <Field data-invalid={!!errors.email}>
-            <FieldLabel htmlFor="reset-email">Email</FieldLabel>
+            <FieldLabel htmlFor="reset-email">{t("auth.reset.email")}</FieldLabel>
             <Input
               id="reset-email"
               type="email"
@@ -87,7 +89,7 @@ export function ResetPasswordForm() {
             <FieldError id="reset-email-error" errors={[errors.email]} />
           </Field>
           <Field data-invalid={!!errors.code}>
-            <FieldLabel htmlFor="reset-code">Code</FieldLabel>
+            <FieldLabel htmlFor="reset-code">{t("auth.reset.code")}</FieldLabel>
             <Input
               id="reset-code"
               inputMode="numeric"
@@ -102,7 +104,7 @@ export function ResetPasswordForm() {
             <FieldError id="reset-code-error" errors={[errors.code]} />
           </Field>
           <Field data-invalid={!!errors.newPassword}>
-            <FieldLabel htmlFor="reset-password">New password</FieldLabel>
+            <FieldLabel htmlFor="reset-password">{t("auth.reset.newPassword")}</FieldLabel>
             <PasswordInput
               id="reset-password"
               autoComplete="new-password"
@@ -114,7 +116,7 @@ export function ResetPasswordForm() {
             <FieldError id="reset-password-error" errors={[errors.newPassword]} />
           </Field>
           <Field data-invalid={!!errors.confirmPassword}>
-            <FieldLabel htmlFor="reset-confirm">Confirm new password</FieldLabel>
+            <FieldLabel htmlFor="reset-confirm">{t("auth.reset.confirmPassword")}</FieldLabel>
             <PasswordInput
               id="reset-confirm"
               autoComplete="new-password"

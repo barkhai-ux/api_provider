@@ -75,3 +75,22 @@ export function safeNextPath(value: string | null | undefined, fallback = "/dash
   if (path.startsWith("//") || /^\/(login|register)(?:[/?#]|$)/.test(path)) return fallback;
   return path;
 }
+
+/**
+ * Localized variant of {@link authErrorMessage}. Known failures map to i18n
+ * keys; a ConvexError's own (server) message is shown as-is; anything else is
+ * the generic message.
+ */
+export function localizedAuthError(error: unknown, t: (key: string) => string): string {
+  const message = rawMessage(error);
+  if (/InvalidCredentials|InvalidAccountId|InvalidSecret|Invalid credentials/.test(message)) {
+    return t("auth.errors.invalidCredentials");
+  }
+  if (/TooManyFailedAttempts/.test(message)) return t("auth.errors.tooManyAttempts");
+  if (/already exists|AccountAlreadyExists/i.test(message)) return t("auth.errors.accountExists");
+  if (/Could not verify code|Invalid code|InvalidCode/i.test(message)) return t("auth.errors.invalidCode");
+  const convexText = convexErrorText(error);
+  if (convexText) return convexText;
+  if (isNetworkError(message)) return t("auth.errors.network");
+  return t("auth.errors.generic");
+}

@@ -23,6 +23,7 @@ import { useConsoleQuery } from "@/hooks/use-console-query";
 import { actionErrorMessage } from "@/lib/auth-errors";
 import { formatDate } from "@/lib/format";
 import { PageHeader } from "./page-header";
+import { useT } from "@/lib/i18n/provider";
 
 const profileSchema = z.object({ name: nameSchema });
 type ProfileValues = z.infer<typeof profileSchema>;
@@ -224,9 +225,10 @@ function SessionCard() {
 }
 
 export function SettingsView() {
+  const t = useT();
   return (
     <>
-      <PageHeader title="Settings" description="Your developer account." />
+      <PageHeader title={t("dashboard.settings.title")} description={t("dashboard.settings.subtitle")} />
       <div className="grid max-w-2xl gap-6">
         <ProfileCard />
         <PasswordCard />

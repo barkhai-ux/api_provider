@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import { connection } from "next/server";
 import { AppProviders } from "@/components/providers/app-providers";
+import { I18nProvider } from "@/lib/i18n/provider";
+import { getLocale, getMessages } from "@/lib/i18n/server";
 import { siteConfig } from "@/lib/config";
 import "./globals.css";
 
@@ -22,8 +24,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   // Every page is rendered per request so Next.js can put the CSP nonce from
   // proxy.ts on its scripts; a statically built page has no nonce to use.
   await connection();
+  const locale = await getLocale();
+  const messages = getMessages(locale);
   return (
-    <html lang="en" className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}>
+    <html lang={locale} className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-background font-sans text-foreground">
         <a
           href="#main"
@@ -31,7 +35,9 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         >
           Skip to content
         </a>
-        <AppProviders>{children}</AppProviders>
+        <I18nProvider locale={locale} messages={messages}>
+          <AppProviders>{children}</AppProviders>
+        </I18nProvider>
       </body>
     </html>
   );

@@ -4,6 +4,7 @@ import type { RouteResponse, TravelMode } from "@geo-platform/api-client";
 import { ArrowDownUp, Car, Circle, Footprints, LocateFixed, Loader2, MapPin, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/format";
+import { useT } from "@/lib/i18n/provider";
 import { cn } from "@/lib/utils";
 import type { LngLatTuple } from "./map-view";
 import { SearchBox } from "./search-box";
@@ -30,13 +31,14 @@ type RoutePanelProps = {
   className?: string;
 };
 
-const MODES: { value: TravelMode; label: string; icon: typeof Car }[] = [
-  { value: "driving", label: "Driving", icon: Car },
-  { value: "walking", label: "Walking", icon: Footprints },
+const MODES: { value: TravelMode; labelKey: string; icon: typeof Car }[] = [
+  { value: "driving", labelKey: "map.driving", icon: Car },
+  { value: "walking", labelKey: "map.walking", icon: Footprints },
 ];
 
 export function RoutePanel(props: RoutePanelProps) {
   const { from, to, mode, result, error, calculating } = props;
+  const t = useT();
   const canCalculate = from.lngLat !== null && to.lngLat !== null && !calculating;
 
   return (
@@ -52,9 +54,9 @@ export function RoutePanel(props: RoutePanelProps) {
       <div className="flex items-stretch gap-2">
         <div className="flex min-w-0 flex-1 flex-col gap-2">
           <SearchBox
-            label="From"
+            label={t("map.from")}
             hideLabel={false}
-            placeholder="Choose a starting point"
+            placeholder={t("map.startPlaceholder")}
             inlineResults={props.inlineResults}
             icon={<Circle />}
             text={from.text}
@@ -62,9 +64,9 @@ export function RoutePanel(props: RoutePanelProps) {
             onSelect={(place) => props.onFromChange({ text: place.name, lngLat: [place.longitude, place.latitude] })}
           />
           <SearchBox
-            label="To"
+            label={t("map.to")}
             hideLabel={false}
-            placeholder="Choose a destination"
+            placeholder={t("map.destinationPlaceholder")}
             inlineResults={props.inlineResults}
             icon={<MapPin />}
             text={to.text}
@@ -73,7 +75,7 @@ export function RoutePanel(props: RoutePanelProps) {
           />
         </div>
         <div className="flex flex-col justify-end gap-2 pb-0.5">
-          <Button type="button" variant="ghost" size="icon" onClick={props.onSwap} aria-label="Swap start and destination">
+          <Button type="button" variant="ghost" size="icon" onClick={props.onSwap} aria-label={t("map.swap")}>
             <ArrowDownUp />
           </Button>
         </div>
@@ -88,13 +90,13 @@ export function RoutePanel(props: RoutePanelProps) {
         disabled={props.locating}
       >
         {props.locating ? <Loader2 className="animate-spin" /> : <LocateFixed />}
-        Use my location as start
+        {t("map.useMyLocationAsStart")}
       </Button>
 
       <fieldset>
-        <legend className="mb-1.5 text-xs font-medium">Mode</legend>
-        <div role="radiogroup" aria-label="Travel mode" className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
-          {MODES.map(({ value, label, icon: Icon }) => (
+        <legend className="mb-1.5 text-xs font-medium">{t("map.mode")}</legend>
+        <div role="radiogroup" aria-label={t("map.travelMode")} className="grid grid-cols-2 gap-1 rounded-lg bg-muted p-1">
+          {MODES.map(({ value, labelKey, icon: Icon }) => (
             <label
               key={value}
               className={cn(
@@ -111,7 +113,7 @@ export function RoutePanel(props: RoutePanelProps) {
                 className="sr-only"
               />
               <Icon className="size-4" aria-hidden="true" />
-              {label}
+              {t(labelKey)}
             </label>
           ))}
         </div>
@@ -120,10 +122,10 @@ export function RoutePanel(props: RoutePanelProps) {
       <div className="flex gap-2">
         <Button type="submit" className="flex-1" disabled={!canCalculate}>
           {calculating && <Loader2 className="animate-spin" />}
-          Calculate route
+          {t("map.calculateRoute")}
         </Button>
         {(result || from.text || to.text) && (
-          <Button type="button" variant="outline" onClick={props.onClear} aria-label="Clear route">
+          <Button type="button" variant="outline" onClick={props.onClear} aria-label={t("map.clearRoute")}>
             <X />
           </Button>
         )}

@@ -9,18 +9,18 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-export type ConsoleNavItem = { href: string; label: string; icon: LucideIcon; exact?: boolean; external?: boolean };
+export type ConsoleNavItem = { href: string; labelKey: string; icon: LucideIcon; exact?: boolean; external?: boolean };
 
 export const CONSOLE_NAV: ConsoleNavItem[] = [
-  { href: "/dashboard", label: "Home", icon: House, exact: true },
-  { href: "/dashboard/api-keys", label: "API keys", icon: KeyRound },
-  { href: "/dashboard/usage", label: "Usage", icon: ChartColumn },
-  { href: "/developers/api-reference", label: "API playground", icon: FlaskConical, external: true },
-  { href: "/developers/docs", label: "Docs", icon: BookOpen, external: true },
-  { href: "/", label: "Map", icon: MapIcon, external: true },
+  { href: "/dashboard", labelKey: "dashboard.nav.home", icon: House, exact: true },
+  { href: "/dashboard/api-keys", labelKey: "dashboard.nav.apiKeys", icon: KeyRound },
+  { href: "/dashboard/usage", labelKey: "dashboard.nav.usage", icon: ChartColumn },
+  { href: "/developers/api-reference", labelKey: "dashboard.nav.apiPlayground", icon: FlaskConical, external: true },
+  { href: "/developers/docs", labelKey: "dashboard.nav.docs", icon: BookOpen, external: true },
+  { href: "/", labelKey: "dashboard.nav.map", icon: MapIcon, external: true },
 ];
 
-export const SETTINGS_NAV: ConsoleNavItem[] = [{ href: "/dashboard/settings", label: "Settings", icon: Settings }];
+export const SETTINGS_NAV: ConsoleNavItem[] = [{ href: "/dashboard/settings", labelKey: "dashboard.nav.settings", icon: Settings }];
 
 export function isActive(item: ConsoleNavItem, pathname: string): boolean {
   if (item.external) return false;

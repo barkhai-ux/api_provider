@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getT } from "@/lib/i18n/server";
 import { Logo } from "./logo";
 
 const COLUMNS = [
@@ -40,7 +41,8 @@ const COLUMNS = [
   },
 ] as const;
 
-export function SiteFooter() {
+export async function SiteFooter() {
+  const t = await getT();
   return (
     <footer className="theme-dark border-t bg-background text-foreground">
       <div className="mx-auto grid max-w-[1400px] gap-12 px-4 py-16 sm:px-6 lg:grid-cols-[1.2fr_2fr] lg:px-8">
@@ -69,8 +71,8 @@ export function SiteFooter() {
       </div>
       <div className="border-t">
         <div className="mx-auto flex max-w-[1400px] flex-col gap-2 px-4 py-6 text-xs text-muted-foreground sm:flex-row sm:justify-between sm:px-6 lg:px-8">
-          <span>© {new Date().getFullYear()} Geo Platform</span>
-          <span>Basemap © Esri and contributors · Data from the platform&apos;s ArcGIS services</span>
+          <span>{t("footer.rights", { year: new Date().getFullYear() })}</span>
+          <span>{t("footer.attribution")}</span>
         </div>
       </div>
     </footer>

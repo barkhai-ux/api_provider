@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useConsoleQuery } from "@/hooks/use-console-query";
 import { formatNumber } from "@/lib/format";
+import { useT } from "@/lib/i18n/provider";
 import { EmptyState } from "./empty-state";
 import { formatPercent, formatStat } from "./format";
 import { PageHeader } from "./page-header";
@@ -19,6 +20,7 @@ import { StatCard } from "./stat-card";
 const RECENT_COUNT = 10;
 
 export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
+  const t = useT();
   const { isAuthenticated } = useConvexAuth();
   const viewer = useConsoleQuery(api.users.viewer, {});
   const summary = useConsoleQuery(api.usage.summary, {});
@@ -32,52 +34,52 @@ export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
   return (
     <>
       <PageHeader
-        title={firstName ? `Welcome, ${firstName}` : "Overview"}
-        description="Your API traffic at a glance. Days and months are in UTC."
+        title={firstName ? t("dashboard.home.welcome", { name: firstName }) : t("dashboard.home.overview")}
+        description={t("dashboard.home.subtitle")}
         actions={
           <Button asChild size="pill" className="h-10 px-5">
             <Link href="/dashboard/api-keys">
-              <KeyRound aria-hidden="true" /> Manage API keys
+              <KeyRound aria-hidden="true" /> {t("dashboard.home.manageKeys")}
             </Link>
           </Button>
         }
       />
 
       <section aria-label="Usage summary" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
-        <StatCard label="Requests today" icon={Activity} loading={loading} value={formatStat(summary?.today.total ?? 0)} />
+        <StatCard label={t("dashboard.home.requestsToday")} icon={Activity} loading={loading} value={formatStat(summary?.today.total ?? 0)} />
         <StatCard
-          label="Requests this month"
+          label={t("dashboard.home.requestsMonth")}
           icon={CalendarDays}
           loading={loading}
           value={formatStat(summary?.month.total ?? 0)}
         />
         <StatCard
-          label="Successful requests"
+          label={t("dashboard.home.successful")}
           icon={CircleCheck}
           loading={loading}
           value={formatStat(summary?.month.successful ?? 0)}
-          context={`${formatPercent(summary?.month.successful ?? 0, summary?.month.total ?? 0)} of this month's requests`}
+          context={t("dashboard.home.successfulContext", { percent: formatPercent(summary?.month.successful ?? 0, summary?.month.total ?? 0) })}
         />
         <StatCard
-          label="Failed requests"
+          label={t("dashboard.home.failed")}
           icon={CircleX}
           loading={loading}
           value={formatStat(summary?.month.failed ?? 0)}
-          context="4xx and 5xx responses this month, including rate limits"
+          context={t("dashboard.home.failedContext")}
         />
         <StatCard
-          label="Current rate limit"
+          label={t("dashboard.home.rateLimit")}
           icon={Gauge}
           loading={loading}
           value={`${formatNumber(summary?.rateLimitPerMinute ?? 0)} / min`}
-          context="Per API key, unless a key has its own limit"
+          context={t("dashboard.home.rateLimitContext")}
         />
         <StatCard
-          label="Active API keys"
+          label={t("dashboard.home.activeKeys")}
           icon={KeyRound}
           loading={loading}
           value={formatNumber(summary?.activeKeys ?? 0)}
-          context={summary && summary.totalKeys > summary.activeKeys ? `${summary.totalKeys - summary.activeKeys} revoked` : undefined}
+          context={summary && summary.totalKeys > summary.activeKeys ? t("dashboard.home.revokedContext", { count: summary.totalKeys - summary.activeKeys }) : undefined}
         />
       </section>
 
@@ -85,11 +87,11 @@ export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
         <div className="mt-6">
           <EmptyState
             icon={KeyRound}
-            title="Create your first API key"
-            description="Create a key, then send it in the Authorization header of every request."
+            title={t("dashboard.home.emptyTitle")}
+            description={t("dashboard.home.emptyDesc")}
             action={
               <Button asChild size="pill" className="h-10 px-5">
-                <Link href="/dashboard/api-keys?create=1">Create API key</Link>
+                <Link href="/dashboard/api-keys?create=1">{t("dashboard.home.createKey")}</Link>
               </Button>
             }
           >

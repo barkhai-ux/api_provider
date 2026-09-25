@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSession } from "@/hooks/use-session";
 import { signOutViaProxy } from "@/lib/auth-client";
+import { useT } from "@/lib/i18n/provider";
 
 function initials(name: string, email: string): string {
   const source = name.trim() || email;
@@ -29,6 +30,7 @@ export function AuthNav({ compact = false }: { compact?: boolean }) {
   const { data, isPending } = useSession();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const t = useT();
 
   if (isPending) return <Skeleton className="h-9 w-44 rounded-full" aria-label="Loading account" />;
 
@@ -36,10 +38,10 @@ export function AuthNav({ compact = false }: { compact?: boolean }) {
     return (
       <div className="flex items-center gap-1">
         <Button asChild variant="ghost" size={compact ? "sm" : "default"} className="font-semibold">
-          <Link href="/login">Sign in</Link>
+          <Link href="/login">{t("authNav.signIn")}</Link>
         </Button>
         <Button asChild size="pill">
-          <Link href="/register">Get API key</Link>
+          <Link href="/register">{t("authNav.getApiKey")}</Link>
         </Button>
       </div>
     );
@@ -56,7 +58,7 @@ export function AuthNav({ compact = false }: { compact?: boolean }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" aria-label="Account menu" className="rounded-full">
+        <Button variant="ghost" size="icon" aria-label={t("authNav.accountMenu")} className="rounded-full">
           <Avatar className="size-8">
             <AvatarFallback className="bg-primary/10 text-xs font-medium text-primary">
               {initials(name, email)}
@@ -66,23 +68,23 @@ export function AuthNav({ compact = false }: { compact?: boolean }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuLabel className="font-normal">
-          <div className="truncate text-sm font-medium">{name || "Developer"}</div>
+          <div className="truncate text-sm font-medium">{name || t("authNav.developer")}</div>
           <div className="truncate text-xs text-muted-foreground">{email}</div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/dashboard">
-            <LayoutDashboard /> Dashboard
+            <LayoutDashboard /> {t("authNav.dashboard")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/dashboard/settings">
-            <Settings /> Account settings
+            <Settings /> {t("authNav.account")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={signOut}>
-          <LogOut /> Sign out
+          <LogOut /> {t("authNav.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

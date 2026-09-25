@@ -61,7 +61,7 @@ function parseRateLimit(headers: Headers): RateLimitInfo | undefined {
 }
 
 /**
- * Client for the Geo Platform public API (`/v1`).
+ * Client for the Ubhub Location Service public API (`/v1`).
  *
  * ```ts
  * const client = new GeoClient({ apiKey: process.env.GEO_API_KEY });

@@ -1,18 +1,18 @@
-export type NavItem = { href: string; label: string; match: (pathname: string) => boolean };
+export type NavItem = { href: string; labelKey: string; match: (pathname: string) => boolean };
 
 export const PUBLIC_NAV: NavItem[] = [
-  { href: "/", label: "Map", match: (p) => p === "/" },
-  { href: "/developers", label: "Developers", match: (p) => p === "/developers" },
-  { href: "/developers/docs", label: "Documentation", match: (p) => p.startsWith("/developers/docs") },
+  { href: "/", labelKey: "nav.map", match: (p) => p === "/" },
+  { href: "/developers", labelKey: "nav.developers", match: (p) => p === "/developers" },
+  { href: "/developers/docs", labelKey: "nav.documentation", match: (p) => p.startsWith("/developers/docs") },
   {
     href: "/developers/api-reference",
-    label: "API reference",
+    labelKey: "nav.apiReference",
     match: (p) => p.startsWith("/developers/api-reference"),
   },
 ];
 
 export const DASHBOARD_NAV: NavItem = {
   href: "/dashboard",
-  label: "Dashboard",
+  labelKey: "authNav.dashboard",
   match: (p) => p.startsWith("/dashboard"),
 };

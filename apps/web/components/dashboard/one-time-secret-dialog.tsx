@@ -25,7 +25,7 @@ function fileName(keyName: string): string {
 
 export function secretFileContents(revealed: RevealedSecret, now: Date = new Date()): string {
   return [
-    "Geo Platform API key",
+    "Ubhub Location Service API key",
     "",
     `Name:    ${revealed.name}`,
     `Key:     ${revealed.secret}`,

@@ -22,6 +22,7 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 import { CONSOLE_NAV, SETTINGS_NAV, isActive, type ConsoleNavItem } from "./nav-items";
 
 function initials(name: string, email: string): string {
@@ -30,6 +31,7 @@ function initials(name: string, email: string): string {
 }
 
 function NavList({ items, pathname, onNavigate }: { items: ConsoleNavItem[]; pathname: string; onNavigate?: () => void }) {
+  const t = useT();
   return (
     <ul className="flex flex-col gap-0.5">
       {items.map((item) => {
@@ -47,7 +49,7 @@ function NavList({ items, pathname, onNavigate }: { items: ConsoleNavItem[]; pat
               )}
             >
               <Icon className="size-[18px]" aria-hidden="true" />
-              {item.label}
+              {t(item.labelKey)}
             </Link>
           </li>
         );
@@ -57,11 +59,12 @@ function NavList({ items, pathname, onNavigate }: { items: ConsoleNavItem[]; pat
 }
 
 function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  const t = useT();
   return (
     <nav aria-label="Developer console" className="flex flex-col gap-8">
       <NavList items={CONSOLE_NAV} pathname={pathname} onNavigate={onNavigate} />
       <div>
-        <p className="px-3 pb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">Settings</p>
+        <p className="px-3 pb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">{t("dashboard.nav.settings")}</p>
         <NavList items={SETTINGS_NAV} pathname={pathname} onNavigate={onNavigate} />
       </div>
     </nav>
@@ -76,6 +79,7 @@ function UserMenu() {
   const name = viewer?.name ?? "";
   const email = viewer?.email ?? "";
 
+  const t = useT();
   async function handleSignOut() {
     await signOut();
     await queryClient.invalidateQueries({ queryKey: ["session"] });
@@ -88,14 +92,14 @@ function UserMenu() {
         <button
           type="button"
           className="flex items-center gap-2 rounded-full bg-background py-1 pr-3 pl-1 text-sm font-semibold shadow-[0_1px_3px_rgb(15_23_42/0.08)] transition-colors hover:bg-background/80"
-          aria-label="Account menu"
+          aria-label={t("authNav.accountMenu")}
         >
           <Avatar className="size-7">
             <AvatarFallback className="bg-primary/10 text-[11px] font-bold text-primary">
               {viewer ? initials(name, email) : ""}
             </AvatarFallback>
           </Avatar>
-          <span className="hidden max-w-40 truncate sm:inline">{name || "Account"}</span>
+          <span className="hidden max-w-40 truncate sm:inline">{name || t("authNav.account")}</span>
           <ChevronDown className="size-4 text-muted-foreground" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>
@@ -107,17 +111,17 @@ function UserMenu() {
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <Link href="/dashboard/settings">
-            <Settings /> Account settings
+            <Settings /> {t("authNav.account")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
           <Link href="/developers/docs">
-            <BookOpen /> Documentation
+            <BookOpen /> {t("authNav.documentation")}
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onSelect={handleSignOut}>
-          <LogOut /> Sign out
+          <LogOut /> {t("authNav.signOut")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
@@ -126,6 +130,7 @@ function UserMenu() {
 
 /** Developer console frame: light canvas, borderless sidebar, top bar with the account menu. */
 export function DashboardShell({ children }: { children: ReactNode }) {
+  const t = useT();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -145,17 +150,17 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button asChild variant="ghost" size="icon" className="rounded-full">
-                  <Link href="/developers/docs" aria-label="Documentation">
+                  <Link href="/developers/docs" aria-label={t("authNav.documentation")}>
                     <BookOpen />
                   </Link>
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Documentation</TooltipContent>
+              <TooltipContent>{t("authNav.documentation")}</TooltipContent>
             </Tooltip>
             <UserMenu />
             <Sheet open={open} onOpenChange={setOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="rounded-full lg:hidden" aria-label="Open menu">
+                <Button variant="ghost" size="icon" className="rounded-full lg:hidden" aria-label={t("authNav.openMenu")}>
                   <Menu />
                 </Button>
               </SheetTrigger>

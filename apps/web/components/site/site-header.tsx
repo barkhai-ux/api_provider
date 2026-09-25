@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useSession } from "@/hooks/use-session";
 import { cn } from "@/lib/utils";
+import { useT } from "@/lib/i18n/provider";
 import { AuthNav } from "./auth-nav";
+import { LanguageToggle } from "./language-toggle";
 import { Logo } from "./logo";
 import { DASHBOARD_NAV, PUBLIC_NAV } from "./nav-items";
 
@@ -17,6 +19,7 @@ export function SiteHeader() {
   const pathname = usePathname();
   const { data } = useSession();
   const [open, setOpen] = useState(false);
+  const t = useT();
   const items = data?.authenticated ? [...PUBLIC_NAV, DASHBOARD_NAV] : PUBLIC_NAV;
 
   return (
@@ -36,23 +39,24 @@ export function SiteHeader() {
                   active && "text-foreground",
                 )}
               >
-                {item.label}
+                {t(item.labelKey)}
               </Link>
             );
           })}
         </nav>
-        <div className="ml-auto hidden lg:block">
+        <div className="ml-auto hidden items-center gap-1 lg:flex">
+          <LanguageToggle />
           <AuthNav />
         </div>
         <Sheet open={open} onOpenChange={setOpen}>
           <SheetTrigger asChild>
-            <Button variant="ghost" size="icon" className="ml-auto lg:hidden" aria-label="Open menu">
+            <Button variant="ghost" size="icon" className="ml-auto lg:hidden" aria-label={t("authNav.openMenu")}>
               <Menu />
             </Button>
           </SheetTrigger>
           <SheetContent side="right" className="theme-dark w-80 bg-background text-foreground">
             <SheetHeader>
-              <SheetTitle>Menu</SheetTitle>
+              <SheetTitle>{t("authNav.menu")}</SheetTitle>
             </SheetHeader>
             <nav aria-label="Main" className="flex flex-col gap-1 px-4">
               {items.map((item) => (
@@ -66,11 +70,12 @@ export function SiteHeader() {
                     item.match(pathname) && "bg-accent text-foreground",
                   )}
                 >
-                  {item.label}
+                  {t(item.labelKey)}
                 </Link>
               ))}
             </nav>
-            <div className="mt-4 border-t px-4 pt-4">
+            <div className="mt-4 space-y-3 border-t px-4 pt-4">
+              <LanguageToggle className="px-0" />
               <AuthNav compact />
             </div>
           </SheetContent>

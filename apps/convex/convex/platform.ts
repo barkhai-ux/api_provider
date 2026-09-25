@@ -46,7 +46,7 @@ export const upsertSystemUser = internalMutation({
       );
     }
     // No authAccounts row: this account cannot sign in.
-    return await ctx.db.insert("users", { email: SYSTEM_EMAIL, name: "Geo Platform", isSystem: true });
+    return await ctx.db.insert("users", { email: SYSTEM_EMAIL, name: "Ubhub Location Service", isSystem: true });
   },
 });
 

@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** Pin inside a circle: the platform mark. Inherits `currentColor` for the ring. */
+/** Monmap LLC mark: a triangle (triforce) inside a circle. Inherits the accent
+ * colour, so it adapts to light and dark surfaces. */
 export function LogoMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true" className={cn("size-7", className)}>
-      <circle cx="16" cy="16" r="16" className="fill-primary" />
-      <path
-        d="M16 7.5a6.5 6.5 0 0 0-6.5 6.5c0 4.6 6.5 11 6.5 11s6.5-6.4 6.5-11A6.5 6.5 0 0 0 16 7.5Z"
-        fill="#fff"
-      />
-      <circle cx="16" cy="14" r="2.4" className="fill-primary" />
+      <circle cx="16" cy="16" r="15" fill="none" className="stroke-primary" strokeWidth="1.6" />
+      {/* Three filled triangles with an empty centre (the background shows through). */}
+      <path d="M16 5.5 10.6 15h10.8L16 5.5Z" className="fill-primary" />
+      <path d="M10.6 15 5.2 24.5H16L10.6 15Z" className="fill-primary" />
+      <path d="M21.4 15 16 24.5h10.8L21.4 15Z" className="fill-primary" />
     </svg>
   );
 }
@@ -20,10 +20,10 @@ export function Logo({ className }: { className?: string }) {
     <Link
       href="/"
       className={cn("flex items-center gap-2.5 rounded-md text-[17px] font-bold tracking-tight", className)}
-      aria-label="Geo Platform home"
+      aria-label="Ubhub Location Service home"
     >
       <LogoMark />
-      <span>geoplatform</span>
+      <span className="whitespace-nowrap">Ubhub Location Service</span>
     </Link>
   );
 }

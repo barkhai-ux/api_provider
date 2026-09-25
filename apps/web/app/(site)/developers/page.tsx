@@ -7,6 +7,7 @@ import { HeroShowcase } from "@/components/developers/hero-showcase";
 import { LiveDemo } from "@/components/developers/live-demo";
 import { CodeTabs } from "@/components/docs/code-block";
 import { Button } from "@/components/ui/button";
+import { getT } from "@/lib/i18n/server";
 import { publicConfig } from "@/lib/config";
 import { cn } from "@/lib/utils";
 
@@ -114,7 +115,8 @@ function Feature({
   );
 }
 
-export default function DevelopersPage() {
+export default async function DevelopersPage() {
+  const t = await getT();
   return (
     <div className="theme-dark overflow-x-clip bg-background text-foreground">
       <Link
@@ -129,21 +131,20 @@ export default function DevelopersPage() {
       <section className="mx-auto max-w-[1400px] px-4 pt-20 pb-16 sm:px-6 lg:px-8 lg:pt-28">
         <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
           <span className="rounded-sm bg-primary px-2 py-1 text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase">
-            API v1
+            {t("developers.hero.badge")}
           </span>
           <h1 className="mt-6 text-[44px] leading-[1.04] font-bold text-foreground sm:text-6xl lg:text-[72px]">
-            Location APIs for Mongolia
+            {t("developers.hero.title")}
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            Search places, turn coordinates into addresses and calculate routes with one API key. Built on local
-            data, in Latin and Cyrillic.
+            {t("developers.hero.subtitle")}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             <Button asChild size="xl">
-              <Link href="/register">Get started for free</Link>
+              <Link href="/register">{t("developers.hero.getStarted")}</Link>
             </Button>
             <Button asChild size="xl" variant="contrast">
-              <Link href="/developers/docs">Read the docs</Link>
+              <Link href="/developers/docs">{t("developers.hero.readDocs")}</Link>
             </Button>
           </div>
         </div>
@@ -258,16 +259,16 @@ export default function DevelopersPage() {
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_50%_100%,var(--glow),transparent_70%)]"
         />
         <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-28 text-center">
-          <h2 className="text-4xl leading-[1.05] font-bold sm:text-[56px]">Start building today</h2>
+          <h2 className="text-4xl leading-[1.05] font-bold sm:text-[56px]">{t("developers.cta.title")}</h2>
           <p className="mt-5 text-lg text-muted-foreground">
-            Create an account, get a key and make your first request.
+            {t("developers.cta.subtitle")}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
             <Button asChild size="xl">
-              <Link href="/register">Get started for free</Link>
+              <Link href="/register">{t("developers.hero.getStarted")}</Link>
             </Button>
             <Button asChild size="xl" variant="contrast">
-              <Link href="/developers/api-reference">API reference</Link>
+              <Link href="/developers/api-reference">{t("developers.cta.apiReference")}</Link>
             </Button>
           </div>
         </div>
