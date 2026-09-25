@@ -6,9 +6,9 @@
 - **Out of scope:**
   - production;
   - Convex Cloud's shared infrastructure beyond your own deployment's functions;
-  - the ArcGIS services behind the API (third-party infrastructure, possibly billed per request);
+  - the ArcGIS services behind the API (a self-hosted GIS server, `arcgis.ubhub.mn`, likely shared with other applications; a flood could degrade it for them);
   - Render's and Cloudflare's platforms.
-- **Protecting ArcGIS during tests:** point `ARCGIS_*` at mocks or leave them unset. The API returns 503 for data endpoints and all authentication, validation and rate-limit paths still run. Alternatively, keep request volumes tiny.
+- **Protecting ArcGIS during tests:** it is not billed per request, but it is a shared production GIS server. Point `ARCGIS_*` at mocks or leave them unset (the API returns 503 for data endpoints while all authentication, validation and rate-limit paths still run), or keep request volumes tiny. Never load-test it.
 - **Stop conditions:** stop and report if you reach data of another tenant, a secret, or a host shell.
 
 ## Local test environment
@@ -86,4 +86,12 @@ Run concurrent routing requests (`hey -n 500 -c 50 ...`) with mocked or unset Ar
 
 ## What was run in the 2026-09-24 review
 
-Automated suites above; scripted probes against the API with mocked upstreams (parameter floods, header tricks, slow and oversized upstreams, redirects, token races); npm audit, pip-audit, Bandit, Semgrep, gitleaks, Trivy (images and configuration); and an OWASP ZAP baseline scan of the website and API. Burp Suite, nmap and ffuf were not run. Results: [SECURITY_REPORT.md](../../SECURITY_REPORT.md).
+The review ran:
+
+- the automated suites above;
+- scripted probes against the API with mocked upstreams (parameter floods, header tricks, slow and oversized upstreams, redirects, token races);
+- npm audit, pip-audit, OSV-Scanner, Bandit, Semgrep, gitleaks and Trivy (images and configuration);
+- an OWASP ZAP baseline scan of the website and API;
+- nmap (LAN and loopback) and ffuf (SecLists `common.txt`) against the local stack.
+
+Burp Suite and authenticated active scanning were not run. Results: [SECURITY_REPORT.md](../../SECURITY_REPORT.md).

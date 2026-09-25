@@ -107,6 +107,13 @@ Then open the website:
 
 3. The request appears on the dashboard's Usage page within a few seconds.
 
+If the API exits at start-up with `Refusing to start in production: …`, the message lists every setting to fix. The usual ones:
+
+- `CORS_ORIGINS` must be the website's exact origin (for example `https://geoplatform-web.onrender.com`), not `*`. Services created from an older Blueprint keep `*` until you change it in the dashboard.
+- `PUBLIC_API_URL` must be the API's `https://` URL.
+- `API_KEY_PEPPER` and `GATEWAY_SECRET` must each be at least 32 characters and different from each other.
+- The Convex and ArcGIS URLs must be public `https://` addresses.
+
 If map searches fail with `SERVICE_UNAVAILABLE` or `UPSTREAM_ERROR`, check the API logs in Render. The most common causes are wrong Convex URLs or secrets that differ between Convex and the API, and ArcGIS servers that do not accept requests from Render's network (Render's `singapore` region; your ArcGIS server must be reachable from the internet).
 
 ## Visitor IP addresses

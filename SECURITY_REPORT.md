@@ -1,6 +1,6 @@
 # Security report
 
-Review of the Geo Platform monorepo (`apps/web`, `apps/api`, `apps/convex`, `packages/*`, Dockerfiles, `docker-compose.yml`, `render.yaml`) on 2026-09-24. Method: manual code review of every trust boundary, targeted probes against a local instance with mocked upstreams, dependency/secret/container/static scanners, and an OWASP ZAP baseline scan of the local stack. No production system and no ArcGIS service was attacked.
+Review of the Geo Platform monorepo (`apps/web`, `apps/api`, `apps/convex`, `packages/*`, Dockerfiles, `docker-compose.yml`, `render.yaml`) on 2026-09-24. Method: manual code review of every trust boundary, targeted probes against a local instance with mocked upstreams, dependency/secret/container/static scanners, an OWASP ZAP baseline scan, and nmap/ffuf reconnaissance of the local stack (2026-09-24/25). No production system and no ArcGIS service was attacked.
 
 Passing scanners shows what the scanners cover, not that the system is secure. The residual risks at the end are real and need decisions.
 
@@ -9,14 +9,14 @@ Passing scanners shows what the scanners cover, not that the system is secure. T
 - **1 high-severity code finding, fixed:** anyone could register the reserved system address before the first deploy and take ownership of the website's site key (H1).
 - **2 high-severity operational findings, open:** production-grade credentials were exposed outside secret storage during setup (H2), and the ArcGIS credential used for routing has portal administrator privileges (H3). Both need action in the ArcGIS portal and the secret stores, not code.
 - **14 medium findings, all fixed or mitigated.** They cover the open redirect after sign-in and the lack of a script CSP. They also cover spoofable visitor addresses, trust in gateway input, and missing pre-authentication throttling. The rest are denial-of-service vectors in parameter parsing and upstream fan-out, weak configuration guards, and base images with critical CVEs.
-- **23 low findings plus informational notes:** most are fixed; the rest are documented as residual risks.
+- **24 low findings plus informational notes:** most are fixed; the rest are documented as residual risks.
 - **Regression tests added:**
   - API: 92 new tests (`apps/api/tests/security`, 213 in total).
   - Convex: 30 new tests (`convex-test`: IDOR, sessions, gateway, accounts).
   - Web: 9 new unit tests (64 in total).
   - E2E: 5 new security tests (32 in total).
 - **All suites and scanners pass:**
-  - npm audit and pip-audit: 0 vulnerabilities.
+  - npm audit, pip-audit and OSV-Scanner: 0 vulnerabilities.
   - Semgrep: 0 findings; Bandit: 0 at medium severity or above.
   - gitleaks: 0 leaks in history or in the commit set.
   - Trivy: 0 critical and 0 fixable high findings in the API and website images; the remaining highs are Debian packages with no published fix.
@@ -109,6 +109,7 @@ Tests: `apps/convex/tests/accounts.test.ts` ("system account"). The live dev dep
 | L21 | Route coordinate parser accepted non-ASCII digits and spaces | Fixed (`re.ASCII`) |
 | L22 | Sign-in, sign-up, reset, settings and playground forms had no `method`: submitted before scripts loaded (or by a scanner), they sent email, password or a pasted key in the URL, and so into history and logs (found by ZAP) | Fixed: `method="post"` on every form (`login-form.test.tsx`) |
 | L23 | `img-src https:` allowed images from any host; 404 pages for `.xml`/`.txt` paths had no CSP (ZAP) | Fixed: `img-src` limited to self, data, blob and the map style host; proxy matcher covers those paths |
+| L24 | The API sent `server: uvicorn`, which nmap used to fingerprint the service | Fixed: `--no-server-header` (E2E header test) |
 
 ### Informational
 
@@ -153,6 +154,7 @@ Type checks (TypeScript, mypy) and linters (ESLint, Ruff) are clean.
 |---|---|---|
 | `npm audit` | 0 | 0 |
 | `pip-audit` (API runtime dependencies) | 0 | 0 |
+| OSV-Scanner 2.6.0 (`package-lock.json`, `uv.lock`: 986 + 37 packages, dev included) | not run | 0 |
 | Bandit | 8 LOW (false positives) | 0 at `-ll -ii` |
 | Semgrep (python, typescript, react, nextjs, secrets, dockerfile) | 3 (1 real: Convex deploy image root) | 0 |
 | gitleaks, history | 9 (placeholders) | 0 |
@@ -189,6 +191,43 @@ Triage of the remaining website warnings:
 
 Resolved between the runs: 10024 (credentials in URL, L22), 10038 (CSP missing on a 404 page, L23), 10055 wildcard directive (`img-src https:`, L23).
 
+### Local aggressive testing (2026-09-25, `docker compose up`)
+
+Run against the local stack (dev mode; ArcGIS pointed at the self-hosted server). Attacks that are rejected before authentication or before the upstream sent nothing to ArcGIS; a small set of injection strings and one route call reached it.
+
+| Attack | Result |
+|---|---|
+| Malformed values (`q` 201 chars, `NaN`, `Infinity`, `1e309`, lat 95, `limit` 0/99, 3-coord origin) | 400/401 (validation or auth first) |
+| Quadratic-parse flood (200 params) | 400 |
+| Oversized header (20 KB), long query (5 KB), 100 KB token | 431 / 414 / 431 |
+| Duplicate query parameter | 400 before auth |
+| SSRF via `url=`/`target=` (metadata, loopback) | rejected (unknown parameter / 404 for `/proxy`) |
+| Method tampering (POST/PUT/DELETE/PATCH on `/v1/geocode`) | 405 |
+| Duplicate `Authorization`, key in query string, malformed key | 401, no Convex lookup |
+| Pre-auth flood: 70 distinct well-formed unknown keys | 60 × 401, then 429 with `Retry-After`; 0 ArcGIS calls |
+| Per-visitor rate limit via the site proxy: 65 valid searches | cut off at 60, then 429 |
+| Injection in `q` (SQL `' OR '1'='1`, `DROP TABLE`, UNION; NoSQL `{$gt:''}`; XSS `<script>`, `<img onerror>`; log4shell `${jndi:...}`; path `../../etc/passwd`; Cyrillic + quote) | all 200 with clean JSON, no 500, no traceback/URL/SQL/pydantic text; response `content-type: application/json` (XSS inert) |
+| Route request | 502 `UPSTREAM_ERROR` (the pre-existing ArcGIS routing-permission block), clean envelope with `request_id`, no upstream detail leaked |
+| ffuf (`common.txt`) on `/`, `/api/`, API `/`, `/v1/` | only public pages and known API paths; `.git/…`, `cgi-bin/` are 308→404 artifacts |
+| Sensitive files (`.git/config`, `.env`, `.env.local`, `.next/BUILD_ID`, `server.js`, `package.json`, `*.js.map`) | all 404; no source maps served |
+
+No new vulnerability. The route 502 is the known ArcGIS portal-permission gap (H3-adjacent operational item), and it is handled without leaking upstream detail.
+
+### Reconnaissance (nmap, ffuf)
+
+- **nmap:**
+  - From the LAN address, ports 3000, 3210, 3211, 6791, 8000, 8008 and 8009 are closed. The stack listens on 127.0.0.1 only.
+  - Service detection on loopback identified the API as "Uvicorn" from its `server` header (L24, fixed).
+  - Port 80 on the review machine is an unrelated Apache 2.4.58 listening on all interfaces; it is outside this project.
+- **ffuf 2.3.0** (SecLists `common.txt`, 4,751 words) against `/`, `/api/`, `/_next/`, API `/` and `/v1/`:
+  - Only the public pages and the known API paths answer.
+  - `/dashboard` redirects to sign-in, and `/api/auth` answers GET with 405.
+  - `.git/…`, `cgi-bin/` and similar paths return a 308 to a same-origin path, then 404.
+  - The API serves `/docs` only because the local stack runs in development mode (off in production, covered by a test).
+- **Follow-up probes:**
+  - Trailing-slash and double-slash redirects (`//evil.example/`, `/\evil.example/`, `/%09/…`) all stay on the same origin.
+  - `/_next/image` refuses remote, internal (`169.254.169.254`, `127.0.0.1`) and protocol-relative URLs: no remote image patterns are configured.
+
 ## Remediation still required (owners: operators)
 
 1. **Rotate every exposed credential (H2).** That covers the ArcGIS OAuth client secret, ArcGIS API keys and tokens, `API_KEY_PEPPER`, `GATEWAY_SECRET` and `SITE_API_KEY`. Use fresh values from `node scripts/generate-secrets.mjs` for production, and a separate production Convex deployment.
@@ -214,4 +253,4 @@ Resolved between the runs: 10024 (credentials in URL, L22), 10038 (CSP missing o
   - The Render edge headers and limits.
   - The RHEL host configuration on a real host (nginx, Quadlet and systemd files are syntax- and policy-checked only).
   - The CI workflows, which have not yet run on GitHub.
-- **Testing depth:** Burp Suite, nmap and ffuf were not run. The dynamic scan was a ZAP baseline (passive) scan plus the scripted probes and tests listed above. A manual penetration test of a staging deployment is recommended ([docs/security/penetration-testing.md](docs/security/penetration-testing.md)).
+- **Testing depth:** Burp Suite was not used. Dynamic testing was a ZAP baseline (passive) scan, nmap and ffuf reconnaissance, and the scripted probes and tests listed above; no authenticated active scan was run. A manual penetration test of a staging deployment is recommended ([docs/security/penetration-testing.md](docs/security/penetration-testing.md)).

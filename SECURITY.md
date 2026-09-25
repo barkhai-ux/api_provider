@@ -31,7 +31,7 @@ The latest review and its findings: [SECURITY_REPORT.md](SECURITY_REPORT.md).
 
 ## Automated checks
 
-`.github/workflows/ci.yml` (type checks, linters, unit, security and Convex tests) and `.github/workflows/security.yml` (gitleaks, `npm audit`, `pip-audit`, Bandit, Semgrep, Trivy for images and configuration). Security jobs fail on high or critical findings; lower ones are reviewed in the weekly run.
+`.github/workflows/ci.yml` (type checks, linters, unit, security and Convex tests) and `.github/workflows/security.yml` (gitleaks, `npm audit`, `pip-audit`, OSV-Scanner, Bandit, Semgrep, Trivy for images and configuration). Security jobs fail on high or critical findings; lower ones are reviewed in the weekly run.
 
 ## Secrets
 

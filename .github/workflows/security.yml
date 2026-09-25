@@ -16,6 +16,7 @@ permissions:
 env:
   GITLEAKS_IMAGE: zricethezav/gitleaks:v8.28.0
   TRIVY_IMAGE: aquasec/trivy:0.67.2
+  OSV_SCANNER_IMAGE: ghcr.io/google/osv-scanner:v2.6.0
 
 jobs:
   secrets:
@@ -49,6 +50,11 @@ jobs:
         run: |
           uv export --frozen --no-dev --no-hashes --no-emit-project > /tmp/requirements.txt
           uvx pip-audit --strict -r /tmp/requirements.txt
+      # OSV database across both lockfiles (npm and uv), including dev dependencies.
+      - name: OSV-Scanner
+        run: >
+          docker run --rm -v "$PWD:/src:ro" "$OSV_SCANNER_IMAGE" scan source
+          --lockfile /src/package-lock.json --lockfile /src/apps/api/uv.lock
 
   static-analysis:
     name: Static analysis

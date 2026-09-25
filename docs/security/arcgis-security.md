@@ -47,4 +47,4 @@ During setup, the credential used for routing had many `portal:admin:*` privileg
 
 ## Testing boundaries
 
-Tests use mocked ArcGIS responses (`respx`, `httpx.MockTransport`). Do not load-test or fuzz the real ArcGIS services: they are third-party infrastructure (see [penetration-testing.md](penetration-testing.md)).
+Tests use mocked ArcGIS responses (`respx`, `httpx.MockTransport`). Do not load-test or fuzz the real ArcGIS services: `arcgis.ubhub.mn` is a self-hosted GIS server (not billed per request) that is likely shared with other applications, so a flood would degrade it for them (see [penetration-testing.md](penetration-testing.md)).
