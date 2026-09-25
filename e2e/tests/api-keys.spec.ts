@@ -33,11 +33,24 @@ test("developer registers, creates a key, calls the API, and revokes the key", a
   await page.getByRole("button", { name: "Revoke key" }).click();
   await expect(page.getByText(/revoked keys/i)).toBeVisible();
 
+  // The API caches key validity briefly (AUTH_CACHE_TTL_SECONDS), so revocation
+  // takes effect within the TTL rather than instantly.
+  await expect
+    .poll(
+      async () => {
+        const res = await request.get(`${API_URL}/v1/geocode`, {
+          params: { q: "Ulaanbaatar" },
+          headers: { Authorization: `Bearer ${secret}` },
+        });
+        return res.status();
+      },
+      { timeout: 20_000, intervals: [1000] },
+    )
+    .toBe(403);
   const revoked = await request.get(`${API_URL}/v1/geocode`, {
     params: { q: "Ulaanbaatar" },
     headers: { Authorization: `Bearer ${secret}` },
   });
-  expect(revoked.status()).toBe(403);
   expect((await revoked.json()).error.code).toBe("API_KEY_REVOKED");
 });
 

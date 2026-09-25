@@ -122,6 +122,7 @@ class ConvexFake:
     counts: dict[str, int] = field(default_factory=dict)
     usage: list[dict[str, Any]] = field(default_factory=list)
     authorize_calls: list[dict[str, Any]] = field(default_factory=list)
+    describe_calls: list[dict[str, Any]] = field(default_factory=list)
     down: bool = False
 
     def add_key(
@@ -187,6 +188,32 @@ class ConvexFake:
             },
         )
 
+    def describe(self, request: httpx.Request) -> httpx.Response:
+        if self.down:
+            raise httpx.ConnectError("convex down")
+        if request.headers.get("Authorization") != f"Bearer {GATEWAY_SECRET}":
+            return httpx.Response(401, json={"error": "unauthorized"})
+        data = json.loads(request.content)
+        self.describe_calls.append(data)
+        key = self.keys.get(data["hash"])
+        if key is None or key["kind"] != "key":
+            return httpx.Response(200, json={"status": "invalid"})
+        if key["status"] in ("revoked", "expired"):
+            return httpx.Response(200, json={"status": key["status"]})
+        return httpx.Response(
+            200,
+            json={
+                "status": "ok",
+                "keyId": key["keyId"],
+                "userId": key["userId"],
+                "isSiteKey": key["site"],
+                "rateLimitPerMinute": key["limit"],
+                "accountLimit": 300,
+                "routeLimit": 30,
+                "endpoints": key["endpoints"],
+            },
+        )
+
     def record_usage(self, request: httpx.Request) -> httpx.Response:
         if self.down:
             raise httpx.ConnectError("convex down")
@@ -212,6 +239,8 @@ def settings() -> Settings:
         arcgis_max_retries=2,
         rate_limit_per_minute=100,
         site_key_per_ip_per_minute=3,
+        auth_cache_ttl_seconds=0,
+        cache_geocode_ttl_seconds=0,
     )
 
 
@@ -231,6 +260,7 @@ def convex() -> ConvexFake:
 def mock_router(convex: ConvexFake) -> Iterator[respx.MockRouter]:
     with respx.mock(assert_all_called=False, assert_all_mocked=True) as router:
         router.post(f"{CONVEX_URL}/gateway/authorize").mock(side_effect=convex.authorize)
+        router.post(f"{CONVEX_URL}/gateway/describe").mock(side_effect=convex.describe)
         router.post(f"{CONVEX_URL}/gateway/usage").mock(side_effect=convex.record_usage)
         router.get(f"{CONVEX_URL}/gateway/health").mock(
             return_value=httpx.Response(200, json={"status": "ok"})

@@ -11,11 +11,12 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from app.core.abuse import FailureLimiter, TerminalStatusCache, visitor_bucket
+from app.core.abuse import FailureLimiter, TerminalStatusCache, WindowRateLimiter, visitor_bucket
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.security import credential_kind, hash_credential
-from app.services.gateway import ConvexGateway, ConvexGatewayError, Principal
+from app.services.cache import TTLCache
+from app.services.gateway import ConvexGateway, ConvexGatewayError, KeyDescription, Principal, RateLimitState
 from app.services.geo.factory import GeoServices
 
 logger = logging.getLogger(__name__)
@@ -132,6 +133,15 @@ async def require_api_key(
         if client:
             limiter.record_failure(client)
         raise _refusal(cached, kind)
+
+    # Fast path: for API keys, cache the key's limits and rate-limit in this
+    # process, skipping the Convex round-trip. Playground tokens always go to
+    # Convex (short-lived, low volume).
+    if kind == "key" and settings.auth_cache_ttl_seconds > 0:
+        return await _authorize_cached(
+            request, settings, gateway, known_bad, limiter, client, credential_hash
+        )
+
     site_key_hash: str | None = request.app.state.site_key_hash
     is_site_key = (
         kind == "key" and site_key_hash is not None and hmac.compare_digest(credential_hash, site_key_hash)
@@ -184,6 +194,96 @@ async def require_api_key(
         if client:
             limiter.record_failure(client)
     raise _refusal(result.status, kind)
+
+
+def _service_unavailable(exc: Exception) -> ApiError:
+    logger.error("authorization_backend_unavailable", extra={"reason": str(exc)})
+    return ApiError(
+        503, ErrorCode.SERVICE_UNAVAILABLE, "Authentication is temporarily unavailable. Try again shortly."
+    )
+
+
+async def _authorize_cached(
+    request: Request,
+    settings: Settings,
+    gateway: ConvexGateway,
+    known_bad: TerminalStatusCache,
+    limiter: FailureLimiter,
+    client: str | None,
+    credential_hash: str,
+) -> Principal:
+    """Authorize an API key from the in-process cache, enforcing rate limits
+    locally. Falls back to a single Convex `describe` query on a cache miss."""
+    cache: TTLCache[KeyDescription] = request.app.state.key_cache
+    window: WindowRateLimiter = request.app.state.window_limiter
+    description = cache.get(credential_hash)
+    if description is None:
+        try:
+            description = await gateway.describe(credential_hash)
+        except ConvexGatewayError as exc:
+            raise _service_unavailable(exc) from exc
+        if description.status == "ok":
+            cache.set(credential_hash, description)
+    if description.status != "ok":
+        if description.status in TERMINAL_STATUSES:
+            known_bad.put(credential_hash, description.status)
+            if client:
+                limiter.record_failure(client)
+        raise _refusal(description.status, "key")
+
+    endpoint = _endpoint(request)
+    principal = Principal(
+        key_id=description.key_id or "",
+        user_id=description.user_id or "",
+        is_site_key=description.is_site_key,
+    )
+    request.state.principal = principal
+    if description.endpoints is not None and endpoint not in description.endpoints:
+        raise ApiError(
+            403,
+            ErrorCode.ENDPOINT_NOT_ALLOWED,
+            "This API key is not allowed to call this endpoint. Create a key that includes it.",
+            {"allowed_endpoints": description.endpoints},
+        )
+
+    now = time.time()
+    default_limit = settings.rate_limit_per_minute
+    per_key = description.rate_limit_per_minute or default_limit
+    buckets: list[tuple[str, int]] = []
+    if description.is_site_key:
+        ip = _visitor_ip(request, settings)
+        per_ip = settings.site_key_per_ip_per_minute
+        buckets.append((f"ip:{ip}", per_ip))
+        buckets.append((f"key:{description.key_id}", description.rate_limit_per_minute or 10_000))
+        if endpoint == "route":
+            buckets.append((f"ip:{ip}:route", min(per_ip, description.route_limit or per_ip)))
+    else:
+        account = description.account_limit or per_key
+        buckets.append((f"key:{description.key_id}", per_key))
+        buckets.append((f"user:{description.user_id}", max(per_key, account)))
+        if endpoint == "route":
+            route_limit = min(per_key, description.route_limit or per_key)
+            buckets.append((f"key:{description.key_id}:route", route_limit))
+
+    allowed = True
+    binding: RateLimitState | None = None
+    for bucket, limit in buckets:
+        ok, remaining, reset = window.hit(bucket, limit, now)
+        allowed = allowed and ok
+        state = RateLimitState(limit=limit, remaining=remaining, reset=reset)
+        if binding is None or remaining < binding.remaining:
+            binding = state
+    if binding is not None:
+        request.state.rate_limit = binding
+    if not allowed and binding is not None:
+        raise ApiError(
+            429,
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            "Too many requests.",
+            {"limit": binding.limit},
+            headers={"Retry-After": str(max(1, binding.reset - int(now)))},
+        )
+    return principal
 
 
 ApiKeyPrincipal = Annotated[Principal, Depends(require_api_key)]

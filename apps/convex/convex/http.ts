@@ -113,6 +113,24 @@ http.route({
 });
 
 http.route({
+  path: "/gateway/describe",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!authorized(request)) return json({ error: "unauthorized" }, 401);
+    let body: Record<string, unknown>;
+    try {
+      body = await readJson(request);
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
+    if (typeof body.hash !== "string" || !/^[0-9a-f]{64}$/.test(body.hash)) {
+      return json({ error: "invalid body" }, 400);
+    }
+    return json(await ctx.runQuery(internal.gateway.describe, { hash: body.hash }));
+  }),
+});
+
+http.route({
   path: "/gateway/usage",
   method: "POST",
   handler: httpAction(async (ctx, request) => {

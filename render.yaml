@@ -51,6 +51,11 @@ services:
       # and overwrites client values (used for failed-authentication limits).
       - key: CLIENT_IP_HEADER
         value: cf-connecting-ip
+      # Cache valid-key auth in the API and rate-limit locally, so requests skip
+      # the Convex round-trip. Render's free plan runs one instance, so per-
+      # instance limits are the same as global. Set 0 if you scale out.
+      - key: AUTH_CACHE_TTL_SECONDS
+        value: "15"
       # Your ArcGIS services. Internal: never shown to API users.
       - key: ARCGIS_GEOCODE_SERVER
         sync: false

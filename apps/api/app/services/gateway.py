@@ -52,6 +52,19 @@ class Authorization(BaseModel):
     allowed_endpoints: list[str] | None = None
 
 
+class KeyDescription(BaseModel):
+    """A key's static limits and scopes (no counters), for the in-process cache."""
+
+    status: Literal["ok", "invalid", "revoked", "expired"]
+    key_id: str | None = None
+    user_id: str | None = None
+    is_site_key: bool = False
+    rate_limit_per_minute: int | None = None
+    account_limit: int | None = None
+    route_limit: int | None = None
+    endpoints: list[str] | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class UsageRecord:
     key_id: str
@@ -129,6 +142,25 @@ class ConvexGateway:
             )
         except ValidationError as exc:
             raise ConvexGatewayError("Convex authorize response has an unexpected shape") from exc
+
+    async def describe(self, credential_hash: str) -> KeyDescription:
+        """Look a key up without counting it (used by the auth cache)."""
+        payload = await self._post("describe", {"hash": credential_hash})
+        try:
+            return KeyDescription.model_validate(
+                {
+                    "status": payload.get("status"),
+                    "key_id": payload.get("keyId"),
+                    "user_id": payload.get("userId"),
+                    "is_site_key": bool(payload.get("isSiteKey", False)),
+                    "rate_limit_per_minute": payload.get("rateLimitPerMinute"),
+                    "account_limit": payload.get("accountLimit"),
+                    "route_limit": payload.get("routeLimit"),
+                    "endpoints": payload.get("endpoints"),
+                }
+            )
+        except ValidationError as exc:
+            raise ConvexGatewayError("Convex describe response has an unexpected shape") from exc
 
     async def record_usage(self, records: list[UsageRecord]) -> None:
         await self._post("usage", {"entries": [record.to_json() for record in records]})

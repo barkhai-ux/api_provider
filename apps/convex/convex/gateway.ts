@@ -8,7 +8,7 @@
  */
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
-import { internalMutation, type MutationCtx } from "./_generated/server";
+import { internalMutation, internalQuery, type MutationCtx } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
 import { API_ENDPOINTS, normalizeEndpoints } from "./lib/endpoints";
 import { accountRateLimitPerMinute, requireEnv, routeRateLimitPerMinute } from "./lib/env";
@@ -63,6 +63,39 @@ function combine(states: RateLimitState[]): RateLimitState {
  *
  * Visitor IPs are stored only as keyed hashes.
  */
+/**
+ * Read-only key lookup for the gateway's in-process cache. It returns the key's
+ * static limits and scopes WITHOUT touching rate-limit counters, so the gateway
+ * can validate and rate-limit locally (see AUTH_CACHE_TTL_SECONDS) and skip the
+ * per-request mutation round-trip. Rate limiting then becomes per gateway
+ * instance; revocation and limit changes take effect within the cache TTL.
+ */
+export const describe = internalQuery({
+  args: { hash: v.string() },
+  handler: async (ctx, { hash }) => {
+    const now = Date.now();
+    const key = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_key_hash", (q) => q.eq("keyHash", hash))
+      .unique();
+    if (key === null) return { status: "invalid" as const };
+    if (key.revokedAt !== undefined) return { status: "revoked" as const };
+    if (key.expiresAt !== undefined && key.expiresAt <= now) return { status: "expired" as const };
+    const owner = await ctx.db.get(key.userId);
+    if (owner === null || owner.disabledAt !== undefined) return { status: "revoked" as const };
+    return {
+      status: "ok" as const,
+      keyId: key._id,
+      userId: key.userId,
+      isSiteKey: key.isSiteKey === true,
+      rateLimitPerMinute: key.rateLimitPerMinute ?? null,
+      accountLimit: accountRateLimitPerMinute(),
+      routeLimit: routeRateLimitPerMinute(),
+      endpoints: key.endpoints ? normalizeEndpoints(key.endpoints) : null,
+    };
+  },
+});
+
 export const authorize = internalMutation({
   args: {
     kind: v.union(v.literal("key"), v.literal("playground")),

@@ -80,3 +80,23 @@ def visitor_bucket(value: str) -> str | None:
             return str(address.ipv4_mapped)
         return f"{ipaddress.IPv6Network(f'{address}/64', strict=False).network_address}/64"
     return str(address)
+
+
+class WindowRateLimiter:
+    """Fixed one-minute windows, in process. Mirrors the Convex gateway's limiter
+    so a cached key can be rate-limited locally (per instance) without a Convex
+    round-trip. Returns (allowed, remaining, reset_epoch) for a bucket."""
+
+    def __init__(self, *, max_buckets: int = 200_000) -> None:
+        self._max_buckets = max_buckets
+        self._counts: OrderedDict[tuple[str, int], int] = OrderedDict()
+
+    def hit(self, bucket: str, limit: int, now: float) -> tuple[bool, int, int]:
+        window = int(now // 60)
+        key = (bucket, window)
+        count = self._counts.pop(key, 0) + 1
+        self._counts[key] = count
+        while len(self._counts) > self._max_buckets:
+            self._counts.popitem(last=False)
+        reset = (window + 1) * 60
+        return count <= limit, max(0, limit - count), reset

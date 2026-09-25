@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     # Seconds a hash that Convex did not recognise is remembered, so repeating
     # the same bad key does not cause another lookup.
     invalid_key_cache_seconds: float = Field(default=30.0, ge=0)
+    # In-process authorization cache. When > 0, a valid key's limits and scopes
+    # are cached for this many seconds and rate limiting is enforced locally, so
+    # most requests skip the Convex round-trip (~200ms). Rate limits then apply
+    # per gateway instance, and revocation/limit changes lag by up to this TTL.
+    # 0 disables it (every request authorizes in Convex). Playground tokens are
+    # never cached. Keep small if you run more than one instance.
+    auth_cache_ttl_seconds: float = Field(default=0.0, ge=0)
 
     # --- Caching -----------------------------------------------------------
     # In-process cache for geocoding results. 0 disables it (the default).

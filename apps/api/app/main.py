@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api import health, v1
-from app.core.abuse import FailureLimiter, TerminalStatusCache
+from app.core.abuse import FailureLimiter, TerminalStatusCache, WindowRateLimiter
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode, error_response, register_exception_handlers
 from app.core.logging import configure_logging
@@ -29,7 +29,8 @@ from app.core.middleware import (
     UnhandledErrorMiddleware,
 )
 from app.core.security import hash_credential
-from app.services.gateway import ConvexGateway
+from app.services.cache import TTLCache
+from app.services.gateway import ConvexGateway, KeyDescription
 from app.services.geo.base import (
     GeoProviderError,
     GeoProviderTimeout,
@@ -190,6 +191,8 @@ def create_app(
     app.state.failed_auth = FailureLimiter(settings.failed_auth_per_ip_per_minute)
     app.state.readiness_lock = asyncio.Lock()
     app.state.known_bad_credentials = TerminalStatusCache(settings.invalid_key_cache_seconds)
+    app.state.key_cache = TTLCache[KeyDescription](settings.auth_cache_ttl_seconds, 50_000)
+    app.state.window_limiter = WindowRateLimiter()
     app.state.site_key_hash = (
         hash_credential(settings.site_api_key.get_secret_value(), settings.api_key_pepper.get_secret_value())
         if settings.site_api_key
