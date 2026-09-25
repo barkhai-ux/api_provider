@@ -1,0 +1,59 @@
+# Public API (FastAPI) as a rootless Podman container managed by systemd.
+#
+#   podman secret create geo_api_key_pepper   - < pepper.txt
+#   podman secret create geo_gateway_secret   - < gateway.txt
+#   podman secret create geo_site_api_key     - < site-key.txt
+#   podman secret create geo_arcgis_client_secret - < arcgis-secret.txt
+#   podman secret create geo_arcgis_token     - < arcgis-token.txt
+#   systemctl --user daemon-reload && systemctl --user start geo-api
+#
+# Non-secret settings live in ~/.config/geo-platform/api.env (chmod 600).
+# Secrets are injected at runtime from Podman secrets; they are never in the
+# image, in `podman inspect` environment output or in the unit file.
+
+[Unit]
+Description=Geo Platform public API
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=registry.example.com/geo-platform/api:1.0.0
+ContainerName=geo-api
+Network=geo-platform.network
+# Only the reverse proxy on this host may reach the API.
+PublishPort=127.0.0.1:8009:8000
+EnvironmentFile=%h/.config/geo-platform/api.env
+Environment=ENVIRONMENT=production
+# nginx overwrites X-Real-IP with the address it saw; the port is reachable
+# only from this host, so the header can be trusted.
+Environment=CLIENT_IP_HEADER=x-real-ip
+Secret=geo_api_key_pepper,type=env,target=API_KEY_PEPPER
+Secret=geo_gateway_secret,type=env,target=GATEWAY_SECRET
+Secret=geo_site_api_key,type=env,target=SITE_API_KEY
+Secret=geo_arcgis_client_secret,type=env,target=ARCGIS_CLIENT_SECRET
+Secret=geo_arcgis_token,type=env,target=ARCGIS_TOKEN
+
+# Container hardening: read-only root, no capabilities, no privilege gain.
+ReadOnly=true
+Tmpfs=/tmp:rw,noexec,nosuid,size=16m
+NoNewPrivileges=true
+DropCapability=ALL
+# The image runs as the unprivileged "app" user; keep it that way.
+User=app
+PodmanArgs=--memory=512m --memory-swap=512m --cpus=1 --pids-limit=256
+
+HealthCmd=python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=20s
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120
+# Do not add NoNewPrivileges= or ProtectSystem= here: rootless Podman needs the
+# setuid newuidmap helper and write access to ~/.local/share/containers. The
+# equivalent restrictions are applied to the container itself above.
+
+[Install]
+WantedBy=default.target

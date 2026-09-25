@@ -1,0 +1,16 @@
+# gitleaks configuration: the default rules plus allowlists for values that
+# are documentation placeholders, not secrets. Keep this list short; never
+# add a real credential here (rotate it instead, see docs/security/incident-response.md).
+title = "Geo Platform"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Placeholders in docs, examples and tests"
+regexTarget = "secret"
+regexes = [
+  '''^YOUR_API_KEY''',
+  '''^\$\{?[A-Za-z_][A-Za-z0-9_.]*\}?$''',
+  '''DevOnly''',
+]

@@ -41,6 +41,7 @@ export function RoutePanel(props: RoutePanelProps) {
 
   return (
     <form
+      method="post"
       className={cn("flex flex-col gap-3", props.className)}
       onSubmit={(event) => {
         event.preventDefault();

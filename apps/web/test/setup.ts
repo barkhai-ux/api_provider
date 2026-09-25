@@ -6,26 +6,29 @@ afterEach(() => {
   cleanup();
 });
 
-// jsdom lacks these browser APIs used by Radix and the map UI.
-class ResizeObserverStub {
-  observe() {}
-  unobserve() {}
-  disconnect() {}
+// jsdom lacks these browser APIs used by Radix and the map UI. Route handler
+// tests run in the node environment, where there is no window.
+if (typeof window !== "undefined") {
+  class ResizeObserverStub {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+  globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+  Element.prototype.scrollIntoView ??= vi.fn();
+  Element.prototype.hasPointerCapture ??= vi.fn(() => false);
+  Element.prototype.releasePointerCapture ??= vi.fn();
 }
-globalThis.ResizeObserver ??= ResizeObserverStub as unknown as typeof ResizeObserver;
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
-Element.prototype.scrollIntoView ??= vi.fn();
-Element.prototype.hasPointerCapture ??= vi.fn(() => false);
-Element.prototype.releasePointerCapture ??= vi.fn();

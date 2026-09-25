@@ -1,3 +1,4 @@
+import { internal } from "./_generated/api";
 import { internalMutation } from "./_generated/server";
 import { usageRetentionDays } from "./lib/env";
 import { DAY_MS, MINUTE_MS } from "./lib/time";
@@ -28,6 +29,11 @@ export const prune = internalMutation({
       .take(BATCH);
     for (const doc of requests) await ctx.db.delete(doc._id);
 
+    // A full batch means more is waiting: continue right away instead of
+    // waiting for the next cron run, so retention holds at any volume.
+    if (windows.length === BATCH || tokens.length === BATCH || requests.length === BATCH) {
+      await ctx.scheduler.runAfter(0, internal.maintenance.prune, {});
+    }
     return { windows: windows.length, tokens: tokens.length, requests: requests.length };
   },
 });

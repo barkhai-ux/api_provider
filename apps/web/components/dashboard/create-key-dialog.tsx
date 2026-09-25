@@ -98,7 +98,7 @@ export function CreateKeyDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
       <DialogContent className="max-h-[92dvh] overflow-y-auto sm:max-w-md">
-        <form onSubmit={form.handleSubmit((values) => onCreate(toCreateValues(values)))} noValidate className="grid gap-4">
+        <form method="post" onSubmit={form.handleSubmit((values) => onCreate(toCreateValues(values)))} noValidate className="grid gap-4">
           <DialogHeader>
             <DialogTitle>Create API key</DialogTitle>
             <DialogDescription>Use a separate key for each app, so you can revoke one without affecting the others.</DialogDescription>

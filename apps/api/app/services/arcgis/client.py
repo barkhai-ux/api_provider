@@ -10,12 +10,13 @@ internal data source can leak into logs or API responses.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
@@ -202,6 +203,9 @@ class ArcGISFeatureServerClient:
         max_retries: int = 2,
         max_records: int = 250_000,
         backoff_base_seconds: float = 0.2,
+        max_concurrency: int = 16,
+        queue_timeout_seconds: float = 5.0,
+        max_response_bytes: int = 32 * 1024 * 1024,
     ) -> None:
         self._http = http
         self._token = token
@@ -210,6 +214,11 @@ class ArcGISFeatureServerClient:
         self._max_retries = max_retries
         self._max_records = max_records
         self._backoff_base = backoff_base_seconds
+        # One budget for all upstream calls, so a burst of expensive requests
+        # queues briefly and then fails fast instead of piling up connections.
+        self._slots = asyncio.Semaphore(max_concurrency)
+        self._queue_timeout = queue_timeout_seconds
+        self._max_response_bytes = max_response_bytes
         self._layer_cache: dict[str, LayerInfo] = {}
         self._layer_locks: dict[str, asyncio.Lock] = {}
 
@@ -362,6 +371,56 @@ class ArcGISFeatureServerClient:
             headers["Referer"] = provider.referer
         return headers
 
+    @contextlib.asynccontextmanager
+    async def _slot(self) -> AsyncIterator[None]:
+        try:
+            await asyncio.wait_for(self._slots.acquire(), self._queue_timeout)
+        except TimeoutError as exc:
+            raise ArcGISUnavailableError("Too many concurrent requests to the data service") from exc
+        try:
+            yield
+        finally:
+            self._slots.release()
+
+    async def _send(
+        self, url: str, params: dict[str, str], headers: dict[str, str], *, use_post: bool
+    ) -> httpx.Response:
+        """One upstream attempt: bounded in concurrency, total time (including a
+        slowly trickling body) and response size. Redirects are never followed."""
+        async with self._slot(), asyncio.timeout(self._timeout):
+            request = self._http.build_request(
+                "POST" if use_post else "GET",
+                url,
+                data=params if use_post else None,
+                params=None if use_post else params,
+                headers=headers,
+                timeout=self._timeout,
+            )
+            response = await self._http.send(request, stream=True, follow_redirects=False)
+            try:
+                declared = int(response.headers.get("Content-Length", "0") or 0)
+                if declared > self._max_response_bytes:
+                    raise ArcGISResponseError("The data service response is too large")
+                chunks: list[bytes] = []
+                size = 0
+                async for chunk in response.aiter_bytes():
+                    size += len(chunk)
+                    if size > self._max_response_bytes:
+                        raise ArcGISResponseError("The data service response is too large")
+                    chunks.append(chunk)
+            finally:
+                await response.aclose()
+            # Rebuild a fully read response so callers can use .content/.json().
+            # The body is already decoded, so drop the encoding headers.
+            kept = [
+                (name, value)
+                for name, value in response.headers.multi_items()
+                if name.lower() not in ("content-encoding", "content-length", "transfer-encoding")
+            ]
+            return httpx.Response(
+                response.status_code, headers=kept, content=b"".join(chunks), request=request
+            )
+
     async def get_json(self, url: str, params: dict[str, str]) -> dict[str, Any]:
         """Any other ArcGIS REST operation (for example a GeocodeServer), with the
         same token handling, retries, timeouts and error detection."""
@@ -383,18 +442,14 @@ class ArcGISFeatureServerClient:
             retry_after: float | None = None
             headers = await self._headers()
             try:
-                if use_post:
-                    response = await self._http.post(url, data=params, headers=headers, timeout=self._timeout)
-                else:
-                    response = await self._http.get(
-                        url, params=params, headers=headers, timeout=self._timeout
-                    )
+                response = await self._send(url, params, headers, use_post=use_post)
             except httpx.ConnectTimeout as exc:
                 failure: ArcGISError = ArcGISTimeoutError("Timed out connecting to the data service")
                 cause: BaseException = exc
-            except httpx.TimeoutException as exc:
-                # A read timeout means the server is slow; retrying would only
-                # multiply the wait, so fail fast.
+            except (httpx.TimeoutException, TimeoutError) as exc:
+                # A read timeout (or the whole attempt taking longer than the
+                # timeout, e.g. a trickling body) means the server is slow;
+                # retrying would only multiply the wait, so fail fast.
                 raise ArcGISTimeoutError("The data service did not respond in time") from exc
             except httpx.TransportError as exc:
                 failure = ArcGISUnavailableError(f"Could not reach the data service ({type(exc).__name__})")
@@ -417,7 +472,7 @@ class ArcGISFeatureServerClient:
                         if self._token_provider is not None and not token_renewed:
                             # Expired or revoked token: renew once and retry.
                             token_renewed = True
-                            await self._token_provider.invalidate()
+                            await self._token_provider.invalidate(_bearer(headers))
                             continue
                         raise ArcGISAuthError("The data service rejected the access token", code)
                     if code is None or code < 500:
@@ -447,9 +502,14 @@ class ArcGISFeatureServerClient:
         return float(self._backoff_base * (2 ** (attempt - 1)) + random.uniform(0, self._backoff_base))  # noqa: S311
 
 
+def _bearer(headers: dict[str, str]) -> str | None:
+    value = headers.get("X-Esri-Authorization", "")
+    return value.removeprefix("Bearer ") or None
+
+
 def _decode_json(response: httpx.Response) -> dict[str, Any]:
     try:
-        payload = response.json()
+        payload = json.loads(response.content)
     except ValueError as exc:
         raise ArcGISResponseError("The data service returned a non-JSON response") from exc
     if not isinstance(payload, dict):

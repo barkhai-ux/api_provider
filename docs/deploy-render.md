@@ -63,6 +63,7 @@ In the Render Dashboard choose **New > Blueprint**, select this repository and b
 | Variable | Value |
 |---|---|
 | `PUBLIC_API_URL` | `https://geoplatform-api.onrender.com` |
+| `CORS_ORIGINS` | `https://geoplatform-web.onrender.com` (the website; `*` is refused in production) |
 | `CONVEX_SITE_URL` | Convex HTTP Actions URL (`.convex.site`) |
 | `API_KEY_PEPPER`, `GATEWAY_SECRET`, `SITE_API_KEY` | from `.env.production` |
 | `ARCGIS_*` | from the root `.env` |

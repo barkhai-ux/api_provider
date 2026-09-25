@@ -1,13 +1,27 @@
 /**
  * Functions called by the public API gateway (FastAPI) through the HTTP
  * actions in http.ts. They are internal: browsers cannot call them.
+ *
+ * The gateway is trusted to present credential hashes and usage records, but
+ * nothing it sends is used to pick another tenant's data: the owner of a key is
+ * always read from the key itself, and every number is clamped.
  */
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
+import { hmacSha256Hex } from "./lib/crypto";
+import { API_ENDPOINTS } from "./lib/endpoints";
+import { accountRateLimitPerMinute, requireEnv, routeRateLimitPerMinute } from "./lib/env";
 import { MINUTE_MS, utcDay, windowStart } from "./lib/time";
 
 type RateLimitState = { limit: number; remaining: number; reset: number; allowed: boolean };
+
+const MAX_LIMIT = 100_000;
+const IP_PATTERN = /^[0-9a-fA-F:.]{2,45}$/;
+
+function clampLimit(value: number | undefined, fallback: number): number {
+  return Number.isFinite(value) && value! >= 1 ? Math.min(Math.floor(value!), MAX_LIMIT) : fallback;
+}
 
 async function hit(ctx: MutationCtx, bucket: string, limit: number, now: number): Promise<RateLimitState> {
   const start = windowStart(now);
@@ -29,11 +43,25 @@ async function hit(ctx: MutationCtx, bucket: string, limit: number, now: number)
   };
 }
 
+/** The most restrictive of several limits: refused if any is exceeded. */
+function combine(states: RateLimitState[]): RateLimitState {
+  const allowed = states.every((state) => state.allowed);
+  const binding = [...states].sort((a, b) => (a.allowed === b.allowed ? a.remaining - b.remaining : a.allowed ? 1 : -1))[0]!;
+  return { ...binding, allowed };
+}
+
 /**
  * Validates a credential (by its peppered hash), checks that its key may call
- * `endpoint`, and counts the request against the rate limit. Keys are limited
- * per key; the website's site key is limited per visitor IP instead, so one
- * visitor cannot use up the shared key.
+ * `endpoint`, and counts the request against layered rate limits:
+ *
+ *   - per key (the key's own limit or the default), or for the website's site
+ *     key per visitor IP (so one visitor cannot use up the shared key) plus an
+ *     overall cap on the key;
+ *   - per account, across all its keys, so creating more keys does not raise
+ *     the ceiling (not for the site key);
+ *   - per key or visitor for routing, the most expensive endpoint.
+ *
+ * Visitor IPs are stored only as keyed hashes.
  */
 export const authorize = internalMutation({
   args: {
@@ -69,6 +97,9 @@ export const authorize = internalMutation({
     }
     if (key.revokedAt !== undefined) return { status: "revoked" as const };
     if (key.expiresAt !== undefined && key.expiresAt <= now) return { status: "expired" as const };
+    const owner = await ctx.db.get(key.userId);
+    // Keys of a disabled or deleted account stop working like revoked keys.
+    if (owner === null || owner.disabledAt !== undefined) return { status: "revoked" as const };
 
     const isSiteKey = key.isSiteKey === true && !viaPlayground;
     const principal = { keyId: key._id, userId: key.userId, isSiteKey, viaPlayground };
@@ -76,10 +107,31 @@ export const authorize = internalMutation({
       // Not counted against the rate limit; recorded in usage as a 403.
       return { status: "endpoint_not_allowed" as const, principal, allowedEndpoints: key.endpoints };
     }
-    const state =
-      isSiteKey && args.clientIp && args.perIpLimit
-        ? await hit(ctx, `ip:${args.clientIp}`, args.perIpLimit, now)
-        : await hit(ctx, `key:${key._id}`, key.rateLimitPerMinute ?? args.defaultLimit, now);
+
+    const defaultLimit = clampLimit(args.defaultLimit, 100);
+    const buckets: { bucket: string; limit: number }[] = [];
+    if (isSiteKey) {
+      // Without a valid visitor IP all such requests share one bucket (fail closed).
+      const ip = args.clientIp && IP_PATTERN.test(args.clientIp) ? args.clientIp : "unknown";
+      const ipHash = (await hmacSha256Hex(requireEnv("GATEWAY_SECRET"), `ip:${ip}`)).slice(0, 32);
+      const perIp = clampLimit(args.perIpLimit, 60);
+      buckets.push({ bucket: `ip:${ipHash}`, limit: perIp });
+      // Overall cap on the shared key, whatever the visitor addresses.
+      buckets.push({ bucket: `key:${key._id}`, limit: clampLimit(key.rateLimitPerMinute, 10_000) });
+      if (args.endpoint === "route") {
+        buckets.push({ bucket: `ip:${ipHash}:route`, limit: Math.min(perIp, routeRateLimitPerMinute()) });
+      }
+    } else {
+      const perKey = clampLimit(key.rateLimitPerMinute, defaultLimit);
+      buckets.push({ bucket: `key:${key._id}`, limit: perKey });
+      buckets.push({ bucket: `user:${key.userId}`, limit: Math.max(perKey, accountRateLimitPerMinute()) });
+      if (args.endpoint === "route") {
+        buckets.push({ bucket: `key:${key._id}:route`, limit: Math.min(perKey, routeRateLimitPerMinute()) });
+      }
+    }
+    const states: RateLimitState[] = [];
+    for (const { bucket, limit } of buckets) states.push(await hit(ctx, bucket, limit, now));
+    const state = combine(states);
     return {
       status: state.allowed ? ("ok" as const) : ("rate_limited" as const),
       principal,
@@ -88,9 +140,11 @@ export const authorize = internalMutation({
   },
 });
 
+// Ids arrive as strings and are checked with normalizeId, so one bad record
+// cannot make the whole batch fail validation.
 export const usageEntry = v.object({
-  keyId: v.id("apiKeys"),
-  userId: v.id("users"),
+  keyId: v.string(),
+  userId: v.string(),
   endpoint: v.string(),
   method: v.string(),
   statusCode: v.number(),
@@ -99,32 +153,70 @@ export const usageEntry = v.object({
 });
 
 const FAILED_STATUS_FROM = 400;
+export const MAX_USAGE_ENTRIES = 200;
+const ENDPOINT_PATHS = new Set<string>(API_ENDPOINTS.map((endpoint) => `/v1/${endpoint}`));
+const METHODS = new Set(["GET", "HEAD"]);
+// Records may be delayed while Convex is unreachable, but not by more than a day.
+const MAX_RECORD_AGE_MS = 24 * 60 * MINUTE_MS;
+const MAX_CLOCK_SKEW_MS = 5 * MINUTE_MS;
+const MAX_RESPONSE_TIME_MS = 10 * MINUTE_MS;
 
-/** Stores a batch of request records and updates the daily rollups. */
+type Rollup = {
+  userId: Id<"users">;
+  apiKeyId: Id<"apiKeys">;
+  endpoint: string;
+  day: string;
+  total: number;
+  successful: number;
+  failed: number;
+  totalResponseTimeMs: number;
+};
+
+/**
+ * Stores a batch of request records and updates the daily rollups. A record
+ * is dropped unless its key exists and belongs to the user it names, and its
+ * endpoint, method, status, duration and time are plausible.
+ */
 export const recordUsage = internalMutation({
   args: { entries: v.array(usageEntry) },
   handler: async (ctx, { entries }) => {
+    const now = Date.now();
+    const keys = new Map<string, Doc<"apiKeys"> | null>();
     const lastUsed = new Map<Id<"apiKeys">, number>();
-    const rollups = new Map<
-      string,
-      { userId: Id<"users">; apiKeyId: Id<"apiKeys">; endpoint: string; day: string; total: number; successful: number; failed: number; totalResponseTimeMs: number }
-    >();
-    for (const entry of entries) {
+    const rollups = new Map<string, Rollup>();
+    let written = 0;
+    for (const entry of entries.slice(0, MAX_USAGE_ENTRIES)) {
+      if (!keys.has(entry.keyId)) {
+        const keyId = ctx.db.normalizeId("apiKeys", entry.keyId);
+        keys.set(entry.keyId, keyId === null ? null : await ctx.db.get(keyId));
+      }
+      const key = keys.get(entry.keyId);
+      if (!key || key.userId !== entry.userId) continue;
+      if (!ENDPOINT_PATHS.has(entry.endpoint) || !METHODS.has(entry.method)) continue;
+      if (!Number.isInteger(entry.statusCode) || entry.statusCode < 100 || entry.statusCode > 599) continue;
+      if (!Number.isFinite(entry.timestamp)) continue;
+      if (entry.timestamp < now - MAX_RECORD_AGE_MS || entry.timestamp > now + MAX_CLOCK_SKEW_MS) continue;
+      const timestamp = Math.min(entry.timestamp, now);
+      const responseTimeMs = Number.isFinite(entry.responseTimeMs)
+        ? Math.min(MAX_RESPONSE_TIME_MS, Math.max(0, Math.round(entry.responseTimeMs)))
+        : 0;
+
       await ctx.db.insert("apiRequests", {
-        apiKeyId: entry.keyId,
-        userId: entry.userId,
-        endpoint: entry.endpoint.slice(0, 100),
-        method: entry.method.slice(0, 10),
+        apiKeyId: key._id,
+        userId: key.userId,
+        endpoint: entry.endpoint,
+        method: entry.method,
         statusCode: entry.statusCode,
-        responseTimeMs: Math.max(0, Math.round(entry.responseTimeMs)),
-        timestamp: entry.timestamp,
+        responseTimeMs,
+        timestamp,
       });
-      lastUsed.set(entry.keyId, Math.max(lastUsed.get(entry.keyId) ?? 0, entry.timestamp));
-      const day = utcDay(entry.timestamp);
-      const id = `${entry.keyId}|${entry.endpoint}|${day}`;
+      written += 1;
+      lastUsed.set(key._id, Math.max(lastUsed.get(key._id) ?? 0, timestamp));
+      const day = utcDay(timestamp);
+      const id = `${key._id}|${entry.endpoint}|${day}`;
       const rollup = rollups.get(id) ?? {
-        userId: entry.userId,
-        apiKeyId: entry.keyId,
+        userId: key.userId,
+        apiKeyId: key._id,
         endpoint: entry.endpoint,
         day,
         total: 0,
@@ -135,7 +227,7 @@ export const recordUsage = internalMutation({
       rollup.total += 1;
       if (entry.statusCode >= FAILED_STATUS_FROM) rollup.failed += 1;
       else rollup.successful += 1;
-      rollup.totalResponseTimeMs += Math.max(0, Math.round(entry.responseTimeMs));
+      rollup.totalResponseTimeMs += responseTimeMs;
       rollups.set(id, rollup);
     }
     for (const rollup of rollups.values()) {
@@ -157,9 +249,9 @@ export const recordUsage = internalMutation({
       }
     }
     for (const [keyId, timestamp] of lastUsed) {
-      const key = await ctx.db.get(keyId);
+      const key = keys.get(keyId);
       if (key && (key.lastUsedAt ?? 0) < timestamp) await ctx.db.patch(keyId, { lastUsedAt: timestamp });
     }
-    return { written: entries.length };
+    return { written, dropped: entries.length - written };
   },
 });

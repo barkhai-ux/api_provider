@@ -23,9 +23,12 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     // The platform's own account, which owns the website's site key.
     isSystem: v.optional(v.boolean()),
+    // Set by an operator (admin:disableUser) to lock the account.
+    disabledAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
   })
     .index("email", ["email"])
+    .index("by_system", ["isSystem"])
     .index("phone", ["phone"]),
 
   apiKeys: defineTable({
@@ -98,5 +101,6 @@ export default defineSchema({
     expiresAt: v.number(),
   })
     .index("by_token_hash", ["tokenHash"])
+    .index("by_key", ["apiKeyId"])
     .index("by_expires", ["expiresAt"]),
 });

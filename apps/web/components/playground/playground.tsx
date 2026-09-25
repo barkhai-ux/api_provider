@@ -213,6 +213,7 @@ export function Playground({ endpoint: endpointId, className }: { endpoint: Play
 
       <div className="grid gap-0 lg:grid-cols-[minmax(0,5fr)_minmax(0,7fr)]">
         <form
+          method="post"
           id={formId}
           noValidate
           onSubmit={(event) => void form.handleSubmit(send)(event)}

@@ -38,5 +38,16 @@ describe("safeNextPath", () => {
     expect(safeNextPath("https://evil.example")).toBe("/dashboard");
     expect(safeNextPath(null)).toBe("/dashboard");
     expect(safeNextPath("/login")).toBe("/dashboard");
+    expect(safeNextPath("/register?next=/x")).toBe("/dashboard");
+  });
+
+  it("rejects paths that browsers would turn into another site", () => {
+    // Browsers strip tab, CR and LF from URLs: "/\t/evil.example" is "//evil.example".
+    for (const value of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/\\/evil.example", "/%5C/evil.example"]) {
+      const result = safeNextPath(value);
+      expect(new URL(result, "https://app.test").origin).toBe("https://app.test");
+    }
+    expect(safeNextPath("/\t/evil.example")).toBe("/dashboard");
+    expect(safeNextPath("/dashboard/api-keys?create=1#top")).toBe("/dashboard/api-keys?create=1#top");
   });
 });

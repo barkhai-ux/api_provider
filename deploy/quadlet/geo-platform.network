@@ -1,0 +1,8 @@
+# Private network for the Geo Platform containers (Podman Quadlet).
+# Install with the .container files in ~/.config/containers/systemd/ of the
+# unprivileged service user (see docs/security/docker-hardening.md).
+[Network]
+NetworkName=geo-platform
+# Containers only talk to each other and to the internet through NAT; nothing
+# on this network is reachable from outside except the published ports.
+Label=app=geo-platform

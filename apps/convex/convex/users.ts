@@ -1,6 +1,5 @@
 import {
   getAuthSessionId,
-  getAuthUserId,
   invalidateSessions,
   modifyAccountCredentials,
   retrieveAccount,
@@ -9,7 +8,7 @@ import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import { action, internalQuery, mutation, query } from "./_generated/server";
 import { validatePassword } from "./auth";
-import { requireUserId } from "./lib/session";
+import { currentUserId, isSessionActive, requireUserId } from "./lib/session";
 
 const MAX_NAME_LENGTH = 120;
 
@@ -17,7 +16,7 @@ const MAX_NAME_LENGTH = 120;
 export const viewer = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
+    const userId = await currentUserId(ctx);
     if (userId === null) return null;
     const user = await ctx.db.get(userId);
     if (user === null) return null;
@@ -42,9 +41,22 @@ export const updateProfile = mutation({
   },
 });
 
-export const emailForUser = internalQuery({
+/** Used by requireUserId in actions, which cannot read the database directly. */
+export const sessionIsActive = internalQuery({
+  args: { userId: v.id("users"), sessionId: v.id("authSessions") },
+  handler: async (ctx, { userId, sessionId }) => await isSessionActive(ctx.db, userId, sessionId),
+});
+
+/** The password account's identifier (the normalized email it was created with). */
+export const passwordAccountId = internalQuery({
   args: { userId: v.id("users") },
-  handler: async (ctx, { userId }) => (await ctx.db.get(userId))?.email ?? null,
+  handler: async (ctx, { userId }) => {
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("userIdAndProvider", (q) => q.eq("userId", userId).eq("provider", "password"))
+      .unique();
+    return account?.providerAccountId ?? null;
+  },
 });
 
 /** Changes the password and signs out every other session. */
@@ -52,9 +64,9 @@ export const changePassword = action({
   args: { currentPassword: v.string(), newPassword: v.string() },
   handler: async (ctx, { currentPassword, newPassword }) => {
     const userId = await requireUserId(ctx);
-    const email = await ctx.runQuery(internal.users.emailForUser, { userId });
+    const email = await ctx.runQuery(internal.users.passwordAccountId, { userId });
     if (email === null) throw new ConvexError("Account not found.");
-    validatePassword(newPassword);
+    validatePassword(newPassword, email);
     try {
       await retrieveAccount(ctx, { provider: "password", account: { id: email, secret: currentPassword } });
     } catch {

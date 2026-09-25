@@ -1,5 +1,5 @@
 import { paginationOptsValidator } from "convex/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { defaultRateLimitPerMinute } from "./lib/env";
@@ -7,6 +7,7 @@ import { requireUserId } from "./lib/session";
 import { DAY_MS, utcDay, utcMonthStartDay } from "./lib/time";
 
 const MAX_SERIES_DAYS = 90;
+const MAX_PAGE_SIZE = 100;
 
 type Counts = { total: number; successful: number; failed: number };
 const empty = (): Counts => ({ total: 0, successful: 0, failed: 0 });
@@ -109,8 +110,13 @@ export const endpoints = query({
 /** Most recent requests, newest first (paginated). */
 export const recent = query({
   args: { paginationOpts: paginationOptsValidator, keyId: v.optional(v.id("apiKeys")) },
-  handler: async (ctx, { paginationOpts, keyId }) => {
+  handler: async (ctx, { paginationOpts: requested, keyId }) => {
     const userId = await requireUserId(ctx);
+    if (keyId !== undefined) {
+      const key = await ctx.db.get(keyId);
+      if (key === null || key.userId !== userId) throw new ConvexError("API key not found.");
+    }
+    const paginationOpts = { ...requested, numItems: Math.min(Math.max(1, requested.numItems), MAX_PAGE_SIZE) };
     const page =
       keyId !== undefined
         ? await ctx.db

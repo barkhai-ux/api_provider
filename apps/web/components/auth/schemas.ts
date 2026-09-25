@@ -5,7 +5,14 @@ export const MIN_PASSWORD_LENGTH = 10;
 export const MAX_PASSWORD_LENGTH = 128;
 export const MAX_NAME_LENGTH = 120;
 
-export const emailSchema = z.string().trim().min(1, "Enter your email address.").pipe(z.email("Enter a valid email address."));
+// Lowercased so sign-in, sign-up and password reset all use the account's
+// canonical address (Convex stores it lowercased).
+export const emailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .min(1, "Enter your email address.")
+  .pipe(z.email("Enter a valid email address."));
 
 export const newPasswordSchema = z
   .string()

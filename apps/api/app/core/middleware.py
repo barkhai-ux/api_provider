@@ -2,7 +2,8 @@
 behave predictably).
 
 Order, outermost first (see ``create_app``):
-CORS -> RequestContext -> SecurityHeaders -> BodySizeLimit -> ApiMetering -> UnhandledError -> app
+CORS -> RequestContext -> RequestLimits -> SecurityHeaders -> BodySizeLimit -> ApiMetering
+-> UnhandledError -> app
 """
 
 from __future__ import annotations
@@ -12,6 +13,7 @@ import re
 import time
 import uuid
 from typing import Any
+from urllib.parse import parse_qsl
 
 from starlette.datastructures import MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -74,9 +76,71 @@ class RequestContextMiddleware:
             request_id_var.reset(token)
 
 
-class SecurityHeadersMiddleware:
-    def __init__(self, app: ASGIApp) -> None:
+class RequestLimitsMiddleware:
+    """Rejects oversized or ambiguous requests before any other work.
+
+    - Headers: at most ``max_header_count`` headers and ``max_header_bytes`` in
+      total (431). Uvicorn itself does not bound them.
+    - Query string: at most ``max_query_bytes`` (414) and, under /v1,
+      ``max_query_params`` parameters, each at most once (400). FastAPI's
+      parameter parsing is quadratic in the number of parameters, and a
+      repeated parameter is ambiguous (which value applies?).
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        max_query_bytes: int,
+        max_query_params: int,
+        max_header_bytes: int,
+        max_header_count: int,
+    ) -> None:
         self.app = app
+        self.max_query_bytes = max_query_bytes
+        self.max_query_params = max_query_params
+        self.max_header_bytes = max_header_bytes
+        self.max_header_count = max_header_count
+
+    def _problem(self, scope: Scope) -> tuple[int, str, dict[str, Any] | None] | None:
+        headers = scope["headers"]
+        header_bytes = sum(len(name) + len(value) for name, value in headers)
+        if len(headers) > self.max_header_count or header_bytes > self.max_header_bytes:
+            return 431, "The request headers are too large.", None
+        query: bytes = scope.get("query_string", b"")
+        if len(query) > self.max_query_bytes:
+            return 414, "The query string is too long.", None
+        if scope["path"].startswith(PUBLIC_API_PREFIX) and query:
+            try:
+                pairs = parse_qsl(
+                    query.decode("latin-1"), keep_blank_values=True, max_num_fields=self.max_query_params
+                )
+            except ValueError:
+                return 400, f"Too many query parameters (at most {self.max_query_params}).", None
+            seen: set[str] = set()
+            for name, _ in pairs:
+                if name in seen:
+                    return 400, f"Parameter '{name[:40]}' must appear only once.", {"field": name[:40]}
+                seen.add(name)
+        return None
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        problem = self._problem(scope)
+        if problem is None:
+            await self.app(scope, receive, send)
+            return
+        status, message, details = problem
+        response = error_response(status, ErrorCode.INVALID_REQUEST, message, details)
+        await response(scope, receive, send)
+
+
+class SecurityHeadersMiddleware:
+    def __init__(self, app: ASGIApp, *, hsts: bool = False) -> None:
+        self.app = app
+        self.hsts = hsts
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -90,6 +154,8 @@ class SecurityHeadersMiddleware:
                 headers.setdefault("X-Content-Type-Options", "nosniff")
                 headers.setdefault("Referrer-Policy", "no-referrer")
                 headers.setdefault("X-Frame-Options", "DENY")
+                if self.hsts:
+                    headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
                 if not is_docs:
                     # JSON responses never need to load or embed anything.
                     headers.setdefault(

@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const { clientIp, isSameOrigin } = await import("./http");
@@ -25,23 +25,31 @@ describe("isSameOrigin", () => {
 });
 
 describe("clientIp", () => {
-  it("uses the right-most X-Forwarded-For entry", () => {
-    expect(clientIp(request({ "x-forwarded-for": "203.0.113.9, 198.51.100.2" }))).toBe("198.51.100.2");
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("trusts no forwarding header unless configured (fail closed)", () => {
+    expect(clientIp(request({ "x-forwarded-for": "203.0.113.9", "x-real-ip": "203.0.113.9" }))).toBeUndefined();
+  });
+
+  it("uses only the header named by CLIENT_IP_HEADER, without falling back", () => {
+    vi.stubEnv("CLIENT_IP_HEADER", "CF-Connecting-IP");
+    const headers = { "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "198.51.100.2" };
+    expect(clientIp(request(headers))).toBe("203.0.113.9");
+    // A spoofed X-Forwarded-For must not stand in for the missing trusted header.
+    expect(clientIp(request({ "x-forwarded-for": "198.51.100.2" }))).toBeUndefined();
+  });
+
+  it("counts trusted proxies from the right with TRUSTED_PROXY_HOPS", () => {
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "1");
+    // The client sent "1.2.3.4"; the trusted proxy appended the real address.
+    expect(clientIp(request({ "x-forwarded-for": "1.2.3.4, 203.0.113.9" }))).toBe("203.0.113.9");
+    vi.stubEnv("TRUSTED_PROXY_HOPS", "2");
+    expect(clientIp(request({ "x-forwarded-for": "1.2.3.4, 203.0.113.9, 10.0.0.1" }))).toBe("203.0.113.9");
+    expect(clientIp(request({ "x-forwarded-for": "10.0.0.1" }))).toBeUndefined();
   });
 
   it("ignores malformed values", () => {
-    expect(clientIp(request({ "x-forwarded-for": "not an ip<script>" }))).toBeUndefined();
-  });
-
-  it("prefers the trusted header named by CLIENT_IP_HEADER", () => {
-    vi.stubEnv("CLIENT_IP_HEADER", "CF-Connecting-IP");
-    try {
-      const headers = { "cf-connecting-ip": "203.0.113.9", "x-forwarded-for": "203.0.113.9, 10.0.0.1" };
-      expect(clientIp(request(headers))).toBe("203.0.113.9");
-      // Falls back to X-Forwarded-For when the trusted header is missing.
-      expect(clientIp(request({ "x-forwarded-for": "10.0.0.1" }))).toBe("10.0.0.1");
-    } finally {
-      vi.unstubAllEnvs();
-    }
+    vi.stubEnv("CLIENT_IP_HEADER", "x-real-ip");
+    expect(clientIp(request({ "x-real-ip": "not an ip<script>" }))).toBeUndefined();
   });
 });

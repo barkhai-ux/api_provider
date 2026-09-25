@@ -8,6 +8,16 @@
 
 name: geo-platform
 
+# Container hardening shared by the application services: read-only root file
+# system, no Linux capabilities, no privilege escalation, bounded resources.
+x-hardening: &hardening
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
+  mem_limit: 768m
+  cpus: 1.0
+
 x-dev-secrets:
   # Shared between services. Change all of them for any non-local deployment.
   api-key-pepper: &api-key-pepper ${API_KEY_PEPPER:-dev-only-api-key-pepper-change-me-0123456789}
@@ -71,6 +81,8 @@ services:
     depends_on:
       convex-backend:
         condition: service_healthy
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
     restart: "no"
 
   # Public API gateway: /v1 geocoding, reverse geocoding, routing.
@@ -100,8 +112,12 @@ services:
     env_file:
       - path: .env
         required: false
+    <<: *hardening
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    # Local only. In production put a TLS reverse proxy in front (deploy/nginx).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       convex-deploy:
         condition: service_completed_successfully
@@ -127,8 +143,16 @@ services:
       # Convex as reached from the web server ("Cloud URL" on Convex Cloud).
       CONVEX_URL: ${CONVEX_URL:-http://convex-backend:3210}
       SITE_API_KEY: *site-api-key
+      # Set when a trusted proxy in front sets the visitor's address (see
+      # docs/security/rate-limiting.md). Unset: forwarding headers are ignored.
+      CLIENT_IP_HEADER: ${CLIENT_IP_HEADER:-}
+      TRUSTED_PROXY_HOPS: ${TRUSTED_PROXY_HOPS:-0}
+    <<: *hardening
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+      - /repo/apps/web/.next/cache:size=64m,noexec,nosuid,uid=1000,gid=1000
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       api:
         condition: service_healthy

@@ -63,7 +63,7 @@ export function ResetPasswordForm() {
         </span>
       }
     >
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <FieldGroup>
           {sent && (
             <Alert>

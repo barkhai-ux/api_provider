@@ -35,7 +35,7 @@ export function RenameKeyDialog({
   return (
     <Dialog open={open} onOpenChange={(next) => !isSubmitting && onOpenChange(next)}>
       <DialogContent className="sm:max-w-md">
-        <form onSubmit={form.handleSubmit(({ name }) => onRename(name))} noValidate className="grid gap-4">
+        <form method="post" onSubmit={form.handleSubmit(({ name }) => onRename(name))} noValidate className="grid gap-4">
           <DialogHeader>
             <DialogTitle>Rename API key</DialogTitle>
           </DialogHeader>

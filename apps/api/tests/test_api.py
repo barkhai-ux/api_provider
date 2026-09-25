@@ -180,6 +180,7 @@ async def test_rate_limit_headers_and_429(client: httpx.AsyncClient, arcgis: Arc
         "code": "RATE_LIMIT_EXCEEDED",
         "message": "Too many requests.",
         "details": {"limit": 2},
+        "request_id": third.headers["X-Request-ID"],
     }
     assert third.headers["X-RateLimit-Remaining"] == "0"
     assert 1 <= int(third.headers["Retry-After"]) <= 60

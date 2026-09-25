@@ -1,0 +1,94 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web, Convex and packages
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: astral-sh/setup-uv@v6
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm test
+      - name: OpenAPI types are up to date
+        run: |
+          npm run generate:types
+          git diff --exit-code packages/types
+      - name: Production build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
+          NEXT_PUBLIC_CONVEX_URL: https://example.convex.cloud
+
+  api:
+    name: API
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen
+      - name: Ruff
+        run: uv run ruff check . && uv run ruff format --check .
+      - name: mypy
+        run: uv run mypy app
+      - name: pytest (includes tests/security)
+        run: uv run pytest -q
+
+  # End-to-end tests need a Convex deployment and the ArcGIS services, so they
+  # run on demand against a staging configuration stored in repository secrets.
+  e2e:
+    name: End-to-end (staging)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npx playwright install --with-deps chromium
+      - name: Start the stack
+        run: docker compose up -d --build --wait
+        env:
+          ENVIRONMENT: development
+          CONVEX_DEPLOY_KEY: ${{ secrets.STAGING_CONVEX_DEPLOY_KEY }}
+          CONVEX_URL: ${{ secrets.STAGING_CONVEX_URL }}
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.STAGING_CONVEX_URL }}
+          CONVEX_SITE_URL: ${{ secrets.STAGING_CONVEX_SITE_URL }}
+          API_KEY_PEPPER: ${{ secrets.STAGING_API_KEY_PEPPER }}
+          GATEWAY_SECRET: ${{ secrets.STAGING_GATEWAY_SECRET }}
+          SITE_API_KEY: ${{ secrets.STAGING_SITE_API_KEY }}
+      - run: npm run test:e2e

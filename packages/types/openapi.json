@@ -813,6 +813,18 @@
             ],
             "title": "Details",
             "description": "Optional structured context, for example the offending `field`."
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id",
+            "description": "Identifies this request in the server logs (same as the `X-Request-ID` header). Quote it when you contact support."
           }
         },
         "type": "object",

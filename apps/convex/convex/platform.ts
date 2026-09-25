@@ -28,11 +28,23 @@ export const userByEmail = internalQuery({
 export const upsertSystemUser = internalMutation({
   args: {},
   handler: async (ctx): Promise<Id<"users">> => {
-    const existing = await ctx.db
+    // Found by the isSystem flag, never by email: sign-up cannot set that flag,
+    // so a user who registered the system address cannot become the owner.
+    const system = await ctx.db
+      .query("users")
+      .withIndex("by_system", (q) => q.eq("isSystem", true))
+      .first();
+    if (system) return system._id;
+    const impostor = await ctx.db
       .query("users")
       .withIndex("email", (q) => q.eq("email", SYSTEM_EMAIL))
       .first();
-    if (existing) return existing._id;
+    if (impostor) {
+      throw new Error(
+        `A regular account uses the reserved address ${SYSTEM_EMAIL} (user ${impostor._id}). ` +
+          "Investigate and disable it (admin:disableUser) before registering the site key.",
+      );
+    }
     // No authAccounts row: this account cannot sign in.
     return await ctx.db.insert("users", { email: SYSTEM_EMAIL, name: "Geo Platform", isSystem: true });
   },
@@ -75,10 +87,12 @@ export const upsertKey = internalMutation({
 export const ensureSiteKey = internalAction({
   args: {},
   handler: async (ctx) => {
+    // Always create the system account first, so its address is taken even
+    // when no site key is configured yet.
+    const userId = await ctx.runMutation(internal.platform.upsertSystemUser, {});
     const secret = process.env.SITE_API_KEY;
     if (!secret) return { siteKey: "not configured" };
     if (!isValidApiKey(secret)) throw new Error("SITE_API_KEY must look like geo_ followed by 32 letters/digits.");
-    const userId = await ctx.runMutation(internal.platform.upsertSystemUser, {});
     await ctx.runMutation(internal.platform.upsertKey, {
       userId,
       name: SITE_KEY_NAME,

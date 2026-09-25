@@ -71,9 +71,11 @@ test("invalid keys get the standard error envelope", async ({ request }) => {
     headers: { Authorization: "Bearer geo_live_" + "x".repeat(32) },
   });
   expect(response.status()).toBe(401);
-  expect(await response.json()).toEqual({
-    error: { code: "INVALID_API_KEY", message: "The API key is missing or invalid." },
+  const body = await response.json();
+  expect(body).toEqual({
+    error: { code: "INVALID_API_KEY", message: "The API key is missing or invalid.", request_id: expect.any(String) },
   });
+  expect(body.error.request_id).toBe(response.headers()["x-request-id"]);
 });
 
 test("dashboard requires sign-in", async ({ page }) => {

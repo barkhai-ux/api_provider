@@ -28,15 +28,21 @@ from app.services.arcgis.client import ArcGISAuthError, ArcGISUnavailableError
 
 logger = logging.getLogger(__name__)
 
-# Renew this long before the token expires.
+# Renew this long before the token expires (at most a fifth of its lifetime,
+# so short-lived tokens are still reused).
 RENEW_MARGIN_SECONDS = 300
+# After the token service fails, callers get the same error for this long
+# instead of each retrying it (no stampede on a struggling token service).
+FAILURE_BACKOFF_SECONDS = 5.0
 
 
 class TokenProvider(Protocol):
     async def token(self) -> str | None: ...
 
-    async def invalidate(self) -> None:
-        """Drop a token the service rejected, so the next call gets a fresh one."""
+    async def invalidate(self, rejected: str | None = None) -> None:
+        """Drop a token the service rejected, so the next call gets a fresh one.
+        With ``rejected``, only if that is still the current token (another
+        request may already have renewed it)."""
         ...
 
     @property
@@ -51,7 +57,7 @@ class StaticTokenProvider:
     async def token(self) -> str | None:
         return self._token
 
-    async def invalidate(self) -> None:
+    async def invalidate(self, rejected: str | None = None) -> None:
         return None
 
     @property
@@ -74,7 +80,9 @@ class _CachedTokenProvider:
         self._referer = referer
         self._timeout = timeout_seconds
         self._token: str | None = None
-        self._expires_at = 0.0
+        self._renew_at = 0.0
+        self._failed_until = 0.0
+        self._last_failure: Exception | None = None
         self._lock = asyncio.Lock()
 
     @property
@@ -82,18 +90,32 @@ class _CachedTokenProvider:
         return self._referer
 
     async def token(self) -> str | None:
-        if self._token and time.time() < self._expires_at - RENEW_MARGIN_SECONDS:
+        if self._token and time.time() < self._renew_at:
             return self._token
         async with self._lock:
-            if self._token and time.time() < self._expires_at - RENEW_MARGIN_SECONDS:
+            now = time.time()
+            if self._token and now < self._renew_at:
                 return self._token
-            self._token, self._expires_at = await self._generate()
-            logger.info("arcgis_token_issued", extra={"expires_in_s": round(self._expires_at - time.time())})
+            if self._last_failure is not None and now < self._failed_until:
+                raise self._last_failure
+            try:
+                token, expires_at = await self._generate()
+            except (ArcGISAuthError, ArcGISUnavailableError) as exc:
+                self._last_failure = exc
+                self._failed_until = time.time() + FAILURE_BACKOFF_SECONDS
+                raise
+            lifetime = max(0.0, expires_at - now)
+            self._token = token
+            self._renew_at = expires_at - min(RENEW_MARGIN_SECONDS, lifetime / 5)
+            self._last_failure = None
+            logger.info("arcgis_token_issued", extra={"expires_in_s": round(lifetime)})
             return self._token
 
-    async def invalidate(self) -> None:
-        self._token = None
-        self._expires_at = 0.0
+    async def invalidate(self, rejected: str | None = None) -> None:
+        async with self._lock:
+            if rejected is None or rejected == self._token:
+                self._token = None
+                self._renew_at = 0.0
 
     async def _generate(self) -> tuple[str, float]:
         raise NotImplementedError

@@ -67,7 +67,7 @@ function ProfileCard() {
 
   return (
     <Card>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <CardHeader>
           <CardTitle>
             <h2>Profile</h2>
@@ -130,7 +130,7 @@ function PasswordCard() {
 
   return (
     <Card>
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <CardHeader>
           <CardTitle>
             <h2>Password</h2>

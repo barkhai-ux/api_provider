@@ -44,6 +44,8 @@ from app.services.geo.road_graph import Direction, NoPathError, RoadGraph, RoadS
 
 logger = logging.getLogger(__name__)
 
+MAX_SEARCH_TOKENS = 8
+
 
 @contextlib.asynccontextmanager
 async def translate_arcgis_errors() -> AsyncIterator[None]:
@@ -120,7 +122,9 @@ class ArcGISGeocodingProvider:
         if not normalized:
             return []
         search_fields = _fields(self._fields.name, self._fields.alt_name)
-        tokens = normalized.split(" ")
+        # Each token becomes a leading-wildcard LIKE per field: keep the clause
+        # small (unique tokens, at most MAX_SEARCH_TOKENS).
+        tokens = list(dict.fromkeys(normalized.split(" ")))[:MAX_SEARCH_TOKENS]
         out_fields = _fields(
             self._fields.name,
             self._fields.alt_name,

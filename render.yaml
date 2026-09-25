@@ -43,9 +43,14 @@ services:
         sync: false
       - key: SITE_API_KEY
         sync: false
-      # The public API is called from anywhere (no cookies are used).
+      # Browser origins allowed to call the API: the website (its playground).
+      # Server-to-server clients are not affected by CORS. Production refuses "*".
       - key: CORS_ORIGINS
-        value: "*"
+        sync: false
+      # Render runs behind Cloudflare, which sets this header to the caller's IP
+      # and overwrites client values (used for failed-authentication limits).
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
       # Your ArcGIS services. Internal: never shown to API users.
       - key: ARCGIS_GEOCODE_SERVER
         sync: false

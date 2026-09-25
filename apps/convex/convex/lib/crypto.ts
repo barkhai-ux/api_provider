@@ -1,4 +1,5 @@
-/** Randomness and hashing helpers (Web Crypto; use from actions only). */
+/** Randomness and hashing helpers (Web Crypto). Generate secrets in actions only;
+ * hashing (HMAC) also runs in mutations. */
 
 const BASE62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 // 248 = 62 * 4: bytes at or above it are rejected to avoid modulo bias.

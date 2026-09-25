@@ -8,11 +8,13 @@
  * @module
  */
 
+import type * as admin from "../admin.js";
 import type * as apiKeys from "../apiKeys.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
 import type * as gateway from "../gateway.js";
 import type * as http from "../http.js";
+import type * as lib_commonPasswords from "../lib/commonPasswords.js";
 import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_endpoints from "../lib/endpoints.js";
 import type * as lib_env from "../lib/env.js";
@@ -32,11 +34,13 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  admin: typeof admin;
   apiKeys: typeof apiKeys;
   auth: typeof auth;
   crons: typeof crons;
   gateway: typeof gateway;
   http: typeof http;
+  "lib/commonPasswords": typeof lib_commonPasswords;
   "lib/crypto": typeof lib_crypto;
   "lib/endpoints": typeof lib_endpoints;
   "lib/env": typeof lib_env;

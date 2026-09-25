@@ -26,6 +26,11 @@ class ErrorDetail(BaseModel):
     details: dict[str, Any] | None = Field(
         default=None, description="Optional structured context, for example the offending `field`."
     )
+    request_id: str | None = Field(
+        default=None,
+        description="Identifies this request in the server logs (same as the `X-Request-ID` header). "
+        "Quote it when you contact support.",
+    )
 
 
 class ErrorResponse(BaseModel):

@@ -16,6 +16,7 @@ from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.api import health, v1
+from app.core.abuse import FailureLimiter, TerminalStatusCache
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode, error_response, register_exception_handlers
 from app.core.logging import configure_logging
@@ -23,6 +24,7 @@ from app.core.middleware import (
     ApiMeteringMiddleware,
     BodySizeLimitMiddleware,
     RequestContextMiddleware,
+    RequestLimitsMiddleware,
     SecurityHeadersMiddleware,
     UnhandledErrorMiddleware,
 )
@@ -136,12 +138,18 @@ def create_app(
     settings = settings or get_settings()
     configure_logging(settings.log_level)
 
+    # Separate connection pools: slow ArcGIS responses must not starve the
+    # Convex calls that every request needs for authentication.
     http = http_client or httpx.AsyncClient(
         limits=httpx.Limits(max_connections=100, max_keepalive_connections=20),
         follow_redirects=False,
     )
+    convex_http = http_client or httpx.AsyncClient(
+        limits=httpx.Limits(max_connections=50, max_keepalive_connections=20),
+        follow_redirects=False,
+    )
     gateway = ConvexGateway(
-        http,
+        convex_http,
         settings.convex_site_url,
         settings.gateway_secret.get_secret_value(),
         settings.convex_timeout_seconds,
@@ -161,19 +169,27 @@ def create_app(
             await recorder.stop()
             if http_client is None:
                 await http.aclose()
+                await convex_http.aclose()
 
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
         lifespan=lifespan,
+        # /openapi.json is the public contract; the interactive pages are
+        # development tools (off in production unless API_DOCS_ENABLED=true).
         openapi_url="/openapi.json",
-        docs_url="/docs",
-        redoc_url="/redoc",
+        docs_url="/docs" if settings.docs_enabled else None,
+        redoc_url="/redoc" if settings.docs_enabled else None,
+        # No automatic trailing-slash redirects: they echo the Host header.
+        redirect_slashes=False,
     )
     app.state.settings = settings
     app.state.gateway = gateway
     app.state.recorder = recorder
     app.state.geo = geo
+    app.state.failed_auth = FailureLimiter(settings.failed_auth_per_ip_per_minute)
+    app.state.readiness_lock = asyncio.Lock()
+    app.state.known_bad_credentials = TerminalStatusCache(settings.invalid_key_cache_seconds)
     app.state.site_key_hash = (
         hash_credential(settings.site_api_key.get_secret_value(), settings.api_key_pepper.get_secret_value())
         if settings.site_api_key
@@ -190,7 +206,14 @@ def create_app(
     app.add_middleware(UnhandledErrorMiddleware)
     app.add_middleware(ApiMeteringMiddleware, recorder=recorder)
     app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_body_bytes)
-    app.add_middleware(SecurityHeadersMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware, hsts=settings.is_production)
+    app.add_middleware(
+        RequestLimitsMiddleware,
+        max_query_bytes=settings.max_query_string_bytes,
+        max_query_params=settings.max_query_params,
+        max_header_bytes=settings.max_header_bytes,
+        max_header_count=settings.max_header_count,
+    )
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
         CORSMiddleware,

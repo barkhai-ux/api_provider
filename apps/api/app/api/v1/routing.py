@@ -14,7 +14,9 @@ from app.services.geo.base import Coordinate
 
 router = APIRouter()
 
-_COORDINATE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
+# ASCII digits and spaces only (re.ASCII): "\d" would otherwise also accept
+# other scripts' digits and "\s" exotic spaces.
+_COORDINATE = re.compile(r"^ *(-?\d{1,3}(?:\.\d{1,15})?) *, *(-?\d{1,3}(?:\.\d{1,15})?) *$", re.ASCII)
 COORDINATE_DESCRIPTION = "Longitude and latitude separated by a comma, in that order (GeoJSON order)."
 
 

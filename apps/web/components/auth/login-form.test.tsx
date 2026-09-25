@@ -27,6 +27,13 @@ describe("LoginForm", () => {
     mocks.next = null;
   });
 
+  it("never puts credentials in the URL, even before scripts load", () => {
+    // Without JavaScript a form submits natively; GET would put the email and
+    // password in the address bar, history and server logs.
+    const { container } = renderForm();
+    expect(container.querySelector("form")).toHaveAttribute("method", "post");
+  });
+
   it("validates the fields before calling the server", async () => {
     const user = userEvent.setup();
     renderForm();

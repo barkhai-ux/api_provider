@@ -45,14 +45,20 @@ def test_production_rejects_short_secrets() -> None:
         )  # type: ignore[call-arg]
 
 
+PRODUCTION = {
+    "environment": Environment.PRODUCTION,
+    "api_key_pepper": STRONG,
+    "gateway_secret": STRONG + "y",
+    "convex_site_url": "https://example-123.convex.site",
+    "public_api_url": "https://api.example.com",
+    "cors_origins": "https://app.example.com",
+}
+
+
 def test_production_accepts_strong_secrets() -> None:
-    settings = Settings(
-        _env_file=None,  # type: ignore[call-arg]
-        environment=Environment.PRODUCTION,
-        api_key_pepper=STRONG,
-        gateway_secret=STRONG + "y",
-    )
+    settings = Settings(_env_file=None, **PRODUCTION)  # type: ignore[call-arg, arg-type]
     assert settings.is_production
+    assert not settings.docs_enabled
 
 
 def test_development_allows_defaults() -> None:

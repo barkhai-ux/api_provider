@@ -9,21 +9,32 @@ export function errorResponse(status: number, code: string, message: string): Re
 
 const IP_PATTERN = /^[0-9a-fA-F:.]{2,45}$/;
 
+function validIp(value: string | null | undefined): string | undefined {
+  const candidate = value?.trim();
+  return candidate && IP_PATTERN.test(candidate) ? candidate : undefined;
+}
+
 /**
- * The visitor's IP. When CLIENT_IP_HEADER is set (for example cf-connecting-ip
- * on Render, which sits behind Cloudflare), that header is used: it must hold a
- * single IP set by a trusted edge proxy that overwrites any client value.
- * Otherwise the right-most X-Forwarded-For entry is used, which is the address
- * seen by the closest proxy. In production run behind a reverse proxy that sets
- * one of these headers; otherwise clients can spoof it.
+ * The visitor's IP, or undefined when it cannot be known reliably. Forwarding
+ * headers are trusted only when configured, because a client that reaches this
+ * server directly can send any value:
+ *
+ * - CLIENT_IP_HEADER: a single-IP header set by a trusted edge proxy that
+ *   overwrites client values (cf-connecting-ip on Render behind Cloudflare,
+ *   x-real-ip behind the nginx configuration in deploy/nginx). No fallback.
+ * - TRUSTED_PROXY_HOPS=n: the n-th X-Forwarded-For entry from the right, for n
+ *   trusted proxies that each append the address they saw.
+ *
+ * With neither, the API limits all anonymous map traffic as one visitor
+ * (fail closed) instead of trusting a spoofable header.
  */
 export function clientIp(request: NextRequest): string | undefined {
   const trustedHeader = process.env.CLIENT_IP_HEADER?.trim().toLowerCase();
-  const candidate =
-    (trustedHeader ? request.headers.get(trustedHeader)?.trim() : undefined)
-    || request.headers.get("x-forwarded-for")?.split(",").map((part) => part.trim()).filter(Boolean).at(-1)
-    || request.headers.get("x-real-ip")?.trim();
-  return candidate && IP_PATTERN.test(candidate) ? candidate : undefined;
+  if (trustedHeader) return validIp(request.headers.get(trustedHeader));
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS ?? "0");
+  if (!Number.isInteger(hops) || hops < 1) return undefined;
+  const entries = (request.headers.get("x-forwarded-for") ?? "").split(",").map((part) => part.trim()).filter(Boolean);
+  return entries.length >= hops ? validIp(entries[entries.length - hops]) : undefined;
 }
 
 /**

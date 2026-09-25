@@ -150,6 +150,11 @@ export interface components {
             details?: {
                 [key: string]: unknown;
             } | null;
+            /**
+             * Request Id
+             * @description Identifies this request in the server logs (same as the `X-Request-ID` header). Quote it when you contact support.
+             */
+            request_id?: string | null;
         };
         /** ErrorResponse */
         ErrorResponse: {

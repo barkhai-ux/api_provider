@@ -10,6 +10,10 @@ export const PLAYGROUND_TOKEN_PREFIX = "geo_pt_";
 export const PLAYGROUND_TOKEN_LENGTH = 40;
 export const MASK = "••••••••••••";
 export const MAX_ACTIVE_KEYS_PER_USER = 25;
+/** Active plus revoked keys; bounds what every key listing has to read. */
+export const MAX_TOTAL_KEYS_PER_USER = 200;
+/** Unexpired playground tokens kept per key; older ones are deleted. */
+export const MAX_PLAYGROUND_TOKENS_PER_KEY = 5;
 export const MAX_KEY_NAME_LENGTH = 100;
 export const PLAYGROUND_TOKEN_TTL_MS = 15 * 60 * 1000;
 /** Expiry must be at least this far ahead, and at most MAX_KEY_LIFETIME_MS. */

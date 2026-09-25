@@ -1,0 +1,46 @@
+# Website (Next.js) as a rootless Podman container managed by systemd.
+#
+#   podman secret create geo_site_api_key - < site-key.txt   (shared with the API)
+#   systemctl --user daemon-reload && systemctl --user start geo-web
+#
+# Build the image with the production NEXT_PUBLIC_* build arguments; they are
+# public by design. Server-only settings are in ~/.config/geo-platform/web.env.
+
+[Unit]
+Description=Geo Platform website
+Wants=network-online.target geo-api.service
+After=network-online.target geo-api.service
+
+[Container]
+Image=registry.example.com/geo-platform/web:1.0.0
+ContainerName=geo-web
+Network=geo-platform.network
+PublishPort=127.0.0.1:8008:3000
+EnvironmentFile=%h/.config/geo-platform/web.env
+# The API over the private container network, not through the internet.
+Environment=API_INTERNAL_URL=http://geo-api:8000
+# nginx overwrites X-Real-IP with the address it saw (deploy/nginx).
+Environment=CLIENT_IP_HEADER=x-real-ip
+Secret=geo_site_api_key,type=env,target=SITE_API_KEY
+
+ReadOnly=true
+# Next.js writes its runtime cache here.
+Tmpfs=/repo/apps/web/.next/cache:rw,noexec,nosuid,size=64m,uid=1000,gid=1000
+Tmpfs=/tmp:rw,noexec,nosuid,size=16m
+NoNewPrivileges=true
+DropCapability=ALL
+User=node
+PodmanArgs=--memory=512m --memory-swap=512m --cpus=1 --pids-limit=256
+
+HealthCmd=node -e "fetch('http://127.0.0.1:3000/robots.txt').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+HealthInterval=30s
+HealthRetries=3
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

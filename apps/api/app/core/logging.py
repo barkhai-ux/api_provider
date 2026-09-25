@@ -28,11 +28,38 @@ _SENSITIVE_KEYS = {
     "api_key",
     "key",
     "x-internal-secret",
+    "x-esri-authorization",
+    "access_token",
+    "refresh_token",
+    "client_secret",
+    "gateway_secret",
+    "api_key_pepper",
+    "pepper",
 }
 _SECRET_PATTERNS = [
-    (re.compile(r"geo_(?:(?:live|test|pt)_)?[A-Za-z0-9]{16,}"), "geo_[REDACTED]"),
-    (re.compile(r"(?i)(bearer\s+)[^\s\"']+"), r"\1[REDACTED]"),
-    (re.compile(r"(?i)(token=)[^&\s\"']+"), r"\1[REDACTED]"),
+    # API keys of every format, playground tokens.
+    (re.compile(r"geo_(?:(?:live|test|pt)_)?[A-Za-z0-9]{10,}"), "geo_[REDACTED]"),
+    # ArcGIS API keys and OAuth access tokens (AAPT..., AAPK...).
+    (re.compile(r"\bAAP[A-Z][A-Za-z0-9._~+/=-]{20,}"), "[REDACTED_ARCGIS_TOKEN]"),
+    # Authorization and Cookie header values (any scheme).
+    (re.compile(r"(?i)\b(bearer|basic)\s+[^\s\"',]+"), r"\1 [REDACTED]"),
+    (re.compile(r"(?i)\b((?:set-)?cookie\s*[:=]\s*)[^\n\"]+"), r"\1[REDACTED]"),
+    # key=value in query strings and forms.
+    (
+        re.compile(
+            r"(?i)\b(token|access_token|refresh_token|client_secret|password|secret|api_key|code)=[^&\s\"']+"
+        ),
+        r"\1=[REDACTED]",
+    ),
+    # "key": "value" in JSON.
+    (
+        re.compile(
+            r'(?i)("(?:token|access_token|refresh_token|client_secret|password|secret|api_key)"\s*:\s*")[^"]*"'
+        ),
+        r'\1[REDACTED]"',
+    ),
+    # Credentials inside URLs (https://user:pass@host).
+    (re.compile(r"(?i)\b([a-z][a-z0-9+.-]*://)[^/\s:@]+:[^/\s@]+@"), r"\1[REDACTED]@"),
 ]
 # Attributes present on every LogRecord; anything else came from ``extra=``.
 _RESERVED = set(vars(logging.LogRecord("", 0, "", 0, "", None, None))) | {"message", "asctime", "taskName"}
@@ -51,6 +78,8 @@ def _redact_value(key: str, value: Any) -> Any:
         return redact_text(value)
     if isinstance(value, dict):
         return {k: _redact_value(str(k), v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [_redact_value(key, item) for item in value]
     return value
 
 

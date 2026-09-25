@@ -1,0 +1,92 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "17 3 * * 1" # weekly, for newly published advisories
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Tools run as pinned CLIs or container images rather than third-party
+# actions, so a compromised action cannot read the repository token.
+env:
+  GITLEAKS_IMAGE: zricethezav/gitleaks:v8.28.0
+  TRIVY_IMAGE: aquasec/trivy:0.67.2
+
+jobs:
+  secrets:
+    name: Secret scanning (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the whole history, not only the last commit
+          persist-credentials: false
+      - name: gitleaks (git history)
+        run: docker run --rm -v "$PWD:/repo" "$GITLEAKS_IMAGE" git /repo --redact --no-banner --exit-code 1
+
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: astral-sh/setup-uv@v6
+      # Fails on high and critical advisories only; lower ones are reviewed
+      # in the weekly run instead of blocking every change.
+      - name: npm audit
+        run: npm audit --audit-level=high --omit=dev
+      - name: pip-audit
+        working-directory: apps/api
+        run: |
+          uv export --frozen --no-dev --no-hashes --no-emit-project > /tmp/requirements.txt
+          uvx pip-audit --strict -r /tmp/requirements.txt
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+      - name: Bandit (API)
+        run: uvx bandit -r apps/api/app -ll -ii
+      - name: Semgrep
+        run: >
+          uvx semgrep scan --error --metrics=off --severity ERROR
+          --config p/python --config p/typescript --config p/react --config p/nextjs
+          --config p/secrets --config p/dockerfile
+          --exclude node_modules --exclude .next --exclude .venv
+          apps packages
+
+  containers:
+    name: Container images (Trivy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Misconfiguration scan (Dockerfiles, compose)
+        run: >
+          docker run --rm -v "$PWD:/src:ro" "$TRIVY_IMAGE" config
+          --severity HIGH,CRITICAL --exit-code 1 /src
+      - name: Build images
+        run: |
+          docker build -t geo-api:ci apps/api
+          docker build -t geo-web:ci -f apps/web/Dockerfile .
+      - name: Scan images
+        run: |
+          for image in geo-api:ci geo-web:ci; do
+            docker run --rm -v /var/run/docker.sock:/var/run/docker.sock:ro "$TRIVY_IMAGE" image \
+              --scanners vuln,secret --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1 "$image"
+          done

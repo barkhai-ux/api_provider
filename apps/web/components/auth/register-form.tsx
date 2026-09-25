@@ -49,7 +49,7 @@ export function RegisterForm() {
         </span>
       }
     >
-      <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
+      <form method="post" onSubmit={form.handleSubmit(onSubmit)} noValidate>
         <FieldGroup>
           <FormAlert message={formError} />
           <Field data-invalid={!!errors.name}>

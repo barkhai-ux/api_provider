@@ -34,8 +34,8 @@ export function authErrorMessage(error: unknown): string {
     return INVALID_CREDENTIALS;
   }
   if (/TooManyFailedAttempts/.test(message)) return TOO_MANY_ATTEMPTS;
-  if (/already exists/i.test(message)) return ACCOUNT_EXISTS;
-  if (/Could not verify code|Invalid code/i.test(message)) return INVALID_CODE;
+  if (/already exists|AccountAlreadyExists/i.test(message)) return ACCOUNT_EXISTS;
+  if (/Could not verify code|Invalid code|InvalidCode/i.test(message)) return INVALID_CODE;
   const convexText = convexErrorText(error);
   if (convexText) return convexText;
   if (isNetworkError(message)) return NETWORK_ERROR;
@@ -54,9 +54,24 @@ export function isNetworkError(message: string): boolean {
   return /Failed to fetch|NetworkError|Network request failed|Load failed/i.test(message);
 }
 
-/** Only same-site relative paths are allowed as post-login destinations. */
+const REDIRECT_BASE = "https://same-origin.invalid";
+
+/**
+ * Only same-site paths are allowed as post-login destinations. The value is
+ * resolved the way the browser would resolve it: browsers drop tabs and line
+ * breaks from URLs, so "/\t/evil.example" would otherwise become
+ * "//evil.example", a different site.
+ */
 export function safeNextPath(value: string | null | undefined, fallback = "/dashboard"): string {
-  if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return fallback;
-  if (value.startsWith("/login") || value.startsWith("/register")) return fallback;
-  return value;
+  if (!value || !value.startsWith("/") || /[\u0000-\u001f\u007f\\]/.test(value)) return fallback;
+  let url: URL;
+  try {
+    url = new URL(value, REDIRECT_BASE);
+  } catch {
+    return fallback;
+  }
+  if (url.origin !== REDIRECT_BASE) return fallback;
+  const path = `${url.pathname}${url.search}${url.hash}`;
+  if (path.startsWith("//") || /^\/(login|register)(?:[/?#]|$)/.test(path)) return fallback;
+  return path;
 }

@@ -1,12 +1,14 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
-import { action, internalMutation, internalQuery, mutation, query } from "./_generated/server";
+import { action, internalMutation, internalQuery, mutation, type MutationCtx, query } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
 import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator } from "./lib/endpoints";
 import { defaultRateLimitPerMinute, requireEnv } from "./lib/env";
 import {
   MAX_ACTIVE_KEYS_PER_USER,
+  MAX_PLAYGROUND_TOKENS_PER_KEY,
+  MAX_TOTAL_KEYS_PER_USER,
   PLAYGROUND_TOKEN_TTL_MS,
   cleanEndpoints,
   cleanExpiresAt,
@@ -104,12 +106,14 @@ export const insertKey = internalMutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const active = (
-      await ctx.db
-        .query("apiKeys")
-        .withIndex("by_user", (q) => q.eq("userId", args.userId))
-        .collect()
-    ).filter((key) => key.revokedAt === undefined);
+    const all = await ctx.db
+      .query("apiKeys")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .take(MAX_TOTAL_KEYS_PER_USER + 1);
+    if (all.length >= MAX_TOTAL_KEYS_PER_USER) {
+      throw new ConvexError("This account has reached the maximum number of API keys. Contact support.");
+    }
+    const active = all.filter((key) => key.revokedAt === undefined);
     if (active.length >= MAX_ACTIVE_KEYS_PER_USER) {
       throw new ConvexError(`You can have at most ${MAX_ACTIVE_KEYS_PER_USER} active API keys. Revoke one first.`);
     }
@@ -175,6 +179,15 @@ export const rename = mutation({
   },
 });
 
+/** Deletes a key's playground tokens, so they stop working with the key. */
+export async function deletePlaygroundTokens(ctx: MutationCtx, keyId: Id<"apiKeys">): Promise<void> {
+  const tokens = await ctx.db
+    .query("playgroundTokens")
+    .withIndex("by_key", (q) => q.eq("apiKeyId", keyId))
+    .collect();
+  for (const token of tokens) await ctx.db.delete(token._id);
+}
+
 /** Revoking takes effect on the next request; it cannot be undone. */
 export const revoke = mutation({
   args: { keyId: v.id("apiKeys") },
@@ -182,6 +195,7 @@ export const revoke = mutation({
     const userId = await requireUserId(ctx);
     const key = await requireOwnedKey(ctx, keyId, userId);
     if (key.revokedAt === undefined) await ctx.db.patch(keyId, { revokedAt: Date.now() });
+    await deletePlaygroundTokens(ctx, keyId);
   },
 });
 
@@ -194,6 +208,8 @@ export const replaceSecret = internalMutation({
       throw new ConvexError("This key has expired. Create a new key instead.");
     }
     await ctx.db.patch(keyId, { keyPrefix: prefix, keyHash });
+    // Tokens issued for the old secret stop working with it.
+    await deletePlaygroundTokens(ctx, keyId);
   },
 });
 
@@ -220,6 +236,16 @@ export const regenerate = action({
 export const insertPlaygroundToken = internalMutation({
   args: { tokenHash: v.string(), apiKeyId: v.id("apiKeys"), userId: v.id("users"), expiresAt: v.number() },
   handler: async (ctx, args) => {
+    // Keep only the newest few tokens per key, so the endpoint cannot be used
+    // to fill the table.
+    const existing = await ctx.db
+      .query("playgroundTokens")
+      .withIndex("by_key", (q) => q.eq("apiKeyId", args.apiKeyId))
+      .collect();
+    const oldestFirst = existing.sort((a, b) => a.expiresAt - b.expiresAt);
+    for (const token of oldestFirst.slice(0, Math.max(0, oldestFirst.length - (MAX_PLAYGROUND_TOKENS_PER_KEY - 1)))) {
+      await ctx.db.delete(token._id);
+    }
     await ctx.db.insert("playgroundTokens", args);
   },
 });
@@ -232,6 +258,9 @@ export const createPlaygroundToken = action({
     const key = await ctx.runQuery(internal.apiKeys.ownedKey, { keyId, userId });
     if (key === null) throw new ConvexError("API key not found.");
     if (key.revokedAt !== undefined) throw new ConvexError("A revoked key cannot be used in the playground.");
+    if (key.expiresAt !== undefined && key.expiresAt <= Date.now()) {
+      throw new ConvexError("An expired key cannot be used in the playground.");
+    }
     const token = generatePlaygroundToken();
     const expiresAt = Date.now() + PLAYGROUND_TOKEN_TTL_MS;
     await ctx.runMutation(internal.apiKeys.insertPlaygroundToken, {

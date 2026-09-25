@@ -13,6 +13,8 @@ from typing import Annotated, Any, Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from app.core.urls import check_upstream_url
+
 
 class Environment(StrEnum):
     DEVELOPMENT = "development"
@@ -83,12 +85,34 @@ class Settings(BaseSettings):
     site_api_key: SecretStr | None = None
 
     # --- HTTP --------------------------------------------------------------
+    # Browser origins allowed to call /v1 (the developer playground). An
+    # explicit list is required in production; "*" is refused there.
     cors_origins: CommaList = ["*"]
     max_request_body_bytes: int = Field(default=16 * 1024, ge=1024)
+    max_query_string_bytes: int = Field(default=2048, ge=256)
+    max_query_params: int = Field(default=16, ge=1)
+    max_header_bytes: int = Field(default=16 * 1024, ge=1024)
+    max_header_count: int = Field(default=64, ge=8)
+    # Swagger UI and ReDoc. Off in production unless enabled; /openapi.json
+    # (the public contract) is always served.
+    api_docs_enabled: bool | None = None
+    # A single-IP header set by a trusted edge proxy that overwrites client
+    # values (cf-connecting-ip on Render). Unset: the connection's address,
+    # after Uvicorn's --proxy-headers handling for trusted local proxies.
+    client_ip_header: str | None = None
+    # Permit plain-HTTP or private-network upstream URLs in production (only
+    # for services on a private network you control).
+    allow_http_upstreams: bool = False
 
     # --- Rate limiting -----------------------------------------------------
     rate_limit_per_minute: int = Field(default=100, ge=1)
     site_key_per_ip_per_minute: int = Field(default=60, ge=1)
+    # Before authentication: failed key checks per client IP and minute. Past
+    # this, requests from that IP get 429 without a lookup.
+    failed_auth_per_ip_per_minute: int = Field(default=60, ge=1)
+    # Seconds a hash that Convex did not recognise is remembered, so repeating
+    # the same bad key does not cause another lookup.
+    invalid_key_cache_seconds: float = Field(default=30.0, ge=0)
 
     # --- Caching -----------------------------------------------------------
     # In-process cache for geocoding results. 0 disables it (the default).
@@ -123,6 +147,11 @@ class Settings(BaseSettings):
     arcgis_token_expiration_minutes: int = Field(default=60, ge=5, le=60 * 24 * 14)
     arcgis_timeout_seconds: float = Field(default=8.0, gt=0)
     arcgis_max_retries: int = Field(default=2, ge=0, le=5)
+    # Concurrent upstream requests across all ArcGIS services; more wait up to
+    # ARCGIS_QUEUE_TIMEOUT_SECONDS, then fail with 503.
+    arcgis_max_concurrency: int = Field(default=16, ge=1, le=256)
+    arcgis_queue_timeout_seconds: float = Field(default=5.0, gt=0)
+    arcgis_max_response_bytes: int = Field(default=32 * 1024 * 1024, ge=64 * 1024)
     arcgis_max_records: int = Field(default=250_000, ge=1)
 
     # Places layer (forward geocoding)
@@ -184,6 +213,7 @@ class Settings(BaseSettings):
         "arcgis_client_id",
         "arcgis_username",
         "arcgis_token_url",
+        "client_ip_header",
         "arcgis_token_referer",
         "routing_na_driving_travel_mode",
         "routing_na_walking_travel_mode",
@@ -245,11 +275,44 @@ class Settings(BaseSettings):
             raise ValueError("REVERSE_GEOCODE_RADII_METERS must be positive and ascending")
         return value
 
+    def _upstream_problems(self) -> list[str]:
+        production = self.environment is Environment.PRODUCTION
+        problems: list[str] = []
+        upstreams = {
+            "CONVEX_SITE_URL": self.convex_site_url,
+            "ARCGIS_GEOCODE_SERVER": self.arcgis_geocode_server,
+            "ARCGIS_ROUTE_SERVICE": self.arcgis_route_service,
+            "ARCGIS_GEOCODING_FEATURE_SERVER": self.arcgis_geocoding_feature_server,
+            "ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER": self.arcgis_reverse_geocoding_feature_server,
+            "ARCGIS_ROUTING_FEATURE_SERVER": self.arcgis_routing_feature_server,
+            "ARCGIS_TOKEN_URL": self.arcgis_token_url,
+        }
+        for name, url in upstreams.items():
+            if url:
+                problems += check_upstream_url(
+                    name, url, production=production, allow_http=self.allow_http_upstreams
+                )
+        return problems
+
     @model_validator(mode="after")
     def _production_guard(self) -> Settings:
+        """Refuses unsafe configuration: bad upstream URLs in any environment,
+        and in production anything that is only acceptable for development.
+        All problems are reported at once."""
+        problems = self._upstream_problems()
         if self.environment is not Environment.PRODUCTION:
+            if problems:
+                raise ValueError("Invalid configuration: " + "; ".join(problems))
             return self
-        problems: list[str] = []
+        if "*" in self.cors_origins:
+            problems.append("CORS_ORIGINS must list the allowed origins explicitly (not *)")
+        for origin in self.cors_origins:
+            if origin != "*" and not origin.startswith("https://"):
+                problems.append(f"CORS_ORIGINS entry {origin!r} must be an https origin")
+        if not self.public_api_url.startswith("https://"):
+            problems.append("PUBLIC_API_URL must be an https URL")
+        if self.api_key_pepper.get_secret_value() == self.gateway_secret.get_secret_value():
+            problems.append("API_KEY_PEPPER and GATEWAY_SECRET must be different")
         secrets = {
             "API_KEY_PEPPER": (self.api_key_pepper, DEV_API_KEY_PEPPER),
             "GATEWAY_SECRET": (self.gateway_secret, DEV_GATEWAY_SECRET),
@@ -270,6 +333,10 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.environment is Environment.PRODUCTION
+
+    @property
+    def docs_enabled(self) -> bool:
+        return self.api_docs_enabled if self.api_docs_enabled is not None else not self.is_production
 
     @property
     def reverse_geocode_radii(self) -> list[float]:

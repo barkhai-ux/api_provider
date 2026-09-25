@@ -116,11 +116,14 @@ class ArcGISLocatorGeocodingProvider:
     async def search(self, text: str, limit: int) -> list[Place]:
         query = " ".join(text.split())[:200]
         async with translate_arcgis_errors():
+            # Each suggestion costs one findAddressCandidates call (billable on
+            # ArcGIS Online), so ask for and resolve no more than requested.
+            wanted = min(MAX_SUGGESTIONS, limit)
             payload = await self._client.get_json(
                 f"{self._config.url}/suggest",
-                {"text": query, "maxSuggestions": str(min(MAX_SUGGESTIONS, max(limit * 2, limit)))},
+                {"text": query, "maxSuggestions": str(wanted)},
             )
-            suggestions = self._parse_suggestions(payload)
+            suggestions = self._parse_suggestions(payload)[:wanted]
             semaphore = asyncio.Semaphore(self._config.resolve_concurrency)
 
             async def resolve(suggestion: _Suggestion) -> Place | None:

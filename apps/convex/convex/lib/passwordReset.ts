@@ -15,6 +15,14 @@ const CODE_TTL_SECONDS = 15 * 60;
 export const PasswordReset = Email({
   id: "password-reset",
   maxAge: CODE_TTL_SECONDS,
+  // The code is tied to the account's normalized (lowercase) email. Compare
+  // normalized values so "Dev@Example.com" and "dev@example.com" match.
+  async authorize(params, account) {
+    const email = typeof params.email === "string" ? params.email.trim().toLowerCase() : "";
+    if (email === "" || email !== String(account.providerAccountId ?? "").trim().toLowerCase()) {
+      throw new Error("The reset code does not match this email address.");
+    }
+  },
   async generateVerificationToken() {
     return randomString(CODE_LENGTH, "0123456789");
   },

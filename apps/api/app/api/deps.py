@@ -11,6 +11,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.abuse import FailureLimiter, TerminalStatusCache, visitor_bucket
 from app.core.config import Settings
 from app.core.errors import ApiError, ErrorCode
 from app.core.security import credential_kind, hash_credential
@@ -37,14 +38,27 @@ def get_geo_services(request: Request) -> GeoServices:
     return services
 
 
-def _client_ip(request: Request) -> str:
-    """The end-user IP forwarded by the website's server (only trusted for the
-    site key, whose secret only that server holds)."""
-    forwarded = request.headers.get("x-client-ip", "").strip()
-    try:
-        return str(ipaddress.ip_address(forwarded))
-    except ValueError:
-        return request.client.host if request.client else "unknown"
+def client_address(request: Request, settings: Settings) -> str | None:
+    """The address of whoever sent this request: the trusted edge header when
+    CLIENT_IP_HEADER is configured, otherwise the connection's peer (after
+    Uvicorn's --proxy-headers handling, which trusts only local proxies).
+    None when it cannot be determined."""
+    if settings.client_ip_header:
+        value = request.headers.get(settings.client_ip_header, "").strip()
+        try:
+            return str(ipaddress.ip_address(value))
+        except ValueError:
+            return None
+    return request.client.host if request.client else None
+
+
+def _visitor_ip(request: Request, settings: Settings) -> str:
+    """The end-user IP forwarded by the website's server in X-Client-IP (only
+    trusted for the site key, whose secret only that server holds), grouped
+    for rate limiting. Without it, the website's own address: all anonymous map
+    traffic then shares one limit (fail closed)."""
+    bucket = visitor_bucket(request.headers.get("x-client-ip", ""))
+    return bucket or visitor_bucket(client_address(request, settings) or "") or "unknown"
 
 
 def _endpoint(request: Request) -> str:
@@ -61,20 +75,63 @@ def _missing_key() -> ApiError:
     )
 
 
+def _too_many_failures(retry_after: int) -> ApiError:
+    return ApiError(
+        429,
+        ErrorCode.RATE_LIMIT_EXCEEDED,
+        "Too many failed authentication attempts. Try again later.",
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+def _refusal(status: str, kind: str) -> ApiError:
+    if status == "revoked":
+        return ApiError(403, ErrorCode.API_KEY_REVOKED, "This API key has been revoked.")
+    if status == "expired":
+        message = (
+            "The playground token has expired. Reload the playground."
+            if kind == "playground"
+            else "This API key has expired."
+        )
+        return ApiError(401, ErrorCode.INVALID_API_KEY, message, {"reason": "expired"})
+    return ApiError(401, ErrorCode.INVALID_API_KEY, "The API key is missing or invalid.")
+
+
+# Statuses that cannot turn back into "ok" for the same credential.
+TERMINAL_STATUSES = ("invalid", "revoked", "expired")
+
+
 async def require_api_key(
     request: Request,
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
 ) -> Principal:
+    if len(request.headers.getlist("authorization")) > 1:
+        raise ApiError(401, ErrorCode.INVALID_API_KEY, "Send exactly one Authorization header.")
+    settings: Settings = request.app.state.settings
+    limiter: FailureLimiter = request.app.state.failed_auth
+    known_bad: TerminalStatusCache = request.app.state.known_bad_credentials
+    # Without a known address the failure limit is skipped: a bucket shared by
+    # every client would let one attacker lock out all of them.
+    client = client_address(request, settings)
     if credentials is None or not credentials.credentials:
         raise _missing_key()
+    blocked_for = limiter.blocked(client) if client else None
+    if blocked_for is not None:
+        raise _too_many_failures(blocked_for)
     token = credentials.credentials.strip()
     kind = credential_kind(token)
     if kind is None:
+        if client:
+            limiter.record_failure(client)
         raise ApiError(401, ErrorCode.INVALID_API_KEY, "The API key is missing or invalid.")
 
-    settings: Settings = request.app.state.settings
     gateway: ConvexGateway = request.app.state.gateway
     credential_hash = hash_credential(token, settings.api_key_pepper.get_secret_value())
+    cached = known_bad.get(credential_hash)
+    if cached is not None:
+        if client:
+            limiter.record_failure(client)
+        raise _refusal(cached, kind)
     site_key_hash: str | None = request.app.state.site_key_hash
     is_site_key = (
         kind == "key" and site_key_hash is not None and hmac.compare_digest(credential_hash, site_key_hash)
@@ -86,7 +143,7 @@ async def require_api_key(
             credential_hash=credential_hash,
             endpoint=_endpoint(request),
             default_limit=settings.rate_limit_per_minute,
-            client_ip=_client_ip(request) if is_site_key else None,
+            client_ip=_visitor_ip(request, settings) if is_site_key else None,
             per_ip_limit=settings.site_key_per_ip_per_minute if is_site_key else None,
         )
     except ConvexGatewayError as exc:
@@ -122,16 +179,11 @@ async def require_api_key(
             "This API key is not allowed to call this endpoint. Create a key that includes it.",
             {"allowed_endpoints": result.allowed_endpoints or []},
         )
-    if result.status == "revoked":
-        raise ApiError(403, ErrorCode.API_KEY_REVOKED, "This API key has been revoked.")
-    if result.status == "expired":
-        message = (
-            "The playground token has expired. Reload the playground."
-            if kind == "playground"
-            else "This API key has expired."
-        )
-        raise ApiError(401, ErrorCode.INVALID_API_KEY, message, {"reason": "expired"})
-    raise ApiError(401, ErrorCode.INVALID_API_KEY, "The API key is missing or invalid.")
+    if result.status in TERMINAL_STATUSES:
+        known_bad.put(credential_hash, result.status)
+        if client:
+            limiter.record_failure(client)
+    raise _refusal(result.status, kind)
 
 
 ApiKeyPrincipal = Annotated[Principal, Depends(require_api_key)]

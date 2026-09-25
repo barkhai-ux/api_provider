@@ -327,28 +327,17 @@ For your own servers:
 
 ## Security
 
-- **Passwords**: scrypt, via Convex Auth. Failed sign-ins are rate limited per account. Unknown email and wrong password return the same error.
-- **API keys**:
-  - format `geo_{live|test}_` + 32 base62 characters (~190 bits);
-  - stored only as `HMAC-SHA256(API_KEY_PEPPER, key)`;
-  - shown once;
-  - regenerating replaces the hash immediately.
-  - The gateway sends only the hash to Convex.
-- **Sessions**:
-  - Convex Auth JWTs (RS256, keys generated once per deployment).
-  - The refresh token lives in an httpOnly, SameSite=Lax cookie; the `__Host-` prefix and `Secure` apply outside localhost.
-  - Sign-in goes through a same-origin proxy that rejects cross-origin requests.
-- **CSRF**: `/api/auth` rejects cross-origin requests (Convex Auth). `/api/playground/token` checks `Origin`/`Sec-Fetch-Site`.
-- **No secrets in the browser**: the website's key and all internal URLs stay server-side. The E2E suite scans the client bundle to confirm.
-- **Rate limiting**: 100 requests/minute per key by default, with `X-RateLimit-*` and `Retry-After` headers. If Convex is unreachable, requests fail closed with 503.
-- **Validation and injection**:
-  - strict parameter validation;
-  - request body size limit;
-  - ArcGIS WHERE clauses built from an allowlist of characters, with quotes escaped;
-  - no SQL database in the request path.
-- **Headers**: CSP on the website and API. `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Cache-Control: no-store` on `/v1`.
-- **Logging**: structured JSON. Keys, tokens, passwords, cookies and authorization headers are redacted. Query strings and upstream URLs are never logged or returned.
-- **Upstream protection**: timeouts, bounded retries, pagination caps, a routing-graph size limit and a snap-distance limit.
+See [SECURITY.md](SECURITY.md) for the policy and an overview, [docs/security/](docs/security/) for each area (threat model, authentication, API keys, rate limiting, SSRF, frontend, Convex, ArcGIS, containers, Linux hosts, incident response, penetration testing), and [SECURITY_REPORT.md](SECURITY_REPORT.md) for the latest review.
+
+In short:
+
+- **Accounts**: Convex Auth (scrypt); passwords of 10–128 characters checked against common and derived passwords; every Convex function checks that the session still exists, so sign-out and password changes apply immediately; failed sign-ins are limited per account and per visitor.
+- **API keys**: `geo_` + 32 base62 characters (~190 bits), stored only as `HMAC-SHA256(API_KEY_PEPPER, key)`, shown once, limited to chosen endpoints, optional expiry, revocation on the next request, accepted only in the `Authorization` header.
+- **Rate limits**: per key, per account, per endpoint (routing), per visitor for the website's key, plus failed-authentication limits and request size limits; `X-RateLimit-*` and `Retry-After` on responses.
+- **SSRF**: no request can choose a server-side destination; upstream URLs are validated configuration; redirects are never followed; upstream calls are bounded in time, size and concurrency.
+- **Website**: nonce-based Content-Security-Policy without `unsafe-inline` scripts, strict same-origin proxy routes, no secrets or source maps in the browser, safe post-login redirects.
+- **Containers**: non-root, read-only root file system, all capabilities dropped, no package managers in runtime images, ports bound to localhost.
+- **Logging**: structured JSON with a request id (also in error bodies); keys, tokens, cookies, passwords and credentials in URLs are redacted; query strings are never logged.
 
 ## Project structure
 
