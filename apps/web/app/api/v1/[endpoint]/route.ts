@@ -22,17 +22,31 @@ const lonLat: Check = (value) => {
   return rest.length === 0 && lon !== undefined && lat !== undefined && longitude(lon.trim()) && latitude(lat.trim());
 };
 
-const ENDPOINTS: Record<string, { required: string[]; params: Record<string, Check> }> = {
+type EndpointSpec = {
+  params: Record<string, Check>;
+  required?: string[];
+  // Extra cross-parameter rule; return an error message or null.
+  validate?: (present: Set<string>) => string | null;
+};
+
+const ENDPOINTS: Record<string, EndpointSpec> = {
+  // One geocoding endpoint: `q` for forward, `lat`+`lon` for reverse.
   geocode: {
-    required: ["q"],
     params: {
       q: (value) => [...value.trim()].length >= 2 && [...value].length <= 200,
       limit: (value) => /^\d{1,2}$/.test(value) && Number(value) >= 1 && Number(value) <= 20,
+      lat: latitude,
+      lon: longitude,
     },
-  },
-  "reverse-geocode": {
-    required: ["lat", "lon"],
-    params: { lat: latitude, lon: longitude },
+    validate: (present) => {
+      const forward = present.has("q");
+      const reverse = present.has("lat") || present.has("lon");
+      if (forward && reverse) return "Provide either 'q' or 'lat' and 'lon', not both.";
+      if (!forward && !reverse) return "Provide 'q' to search, or 'lat' and 'lon' to reverse geocode.";
+      if (reverse && !(present.has("lat") && present.has("lon"))) return "Reverse geocoding needs both 'lat' and 'lon'.";
+      if (forward && present.has("limit") === false) return null;
+      return null;
+    },
   },
   route: {
     required: ["origin", "destination"],
@@ -95,8 +109,12 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/v1/[endp
     if (!check(values[0]!)) return invalid(`Invalid value for '${name}'.`);
     query.set(name, values[0]!);
   }
-  for (const name of spec.required) {
+  for (const name of spec.required ?? []) {
     if (!query.has(name)) return invalid(`Parameter '${name}' is required.`);
+  }
+  if (spec.validate) {
+    const problem = spec.validate(new Set(query.keys()));
+    if (problem) return invalid(problem);
   }
 
   const env = serverEnv();

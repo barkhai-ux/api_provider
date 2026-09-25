@@ -7,7 +7,6 @@ const COLUMNS = [
     title: "APIs",
     links: [
       { href: "/developers/docs/geocoding", label: "Geocoding" },
-      { href: "/developers/docs/reverse-geocoding", label: "Reverse geocoding" },
       { href: "/developers/docs/routing", label: "Routing" },
       { href: "/", label: "Map" },
     ],

@@ -10,8 +10,6 @@ type Schemas = components["schemas"];
 
 export type GeocodeResponse = Schemas["GeocodeResponse"];
 export type GeocodeResult = Schemas["GeocodeResult"];
-export type ReverseGeocodeResponse = Schemas["ReverseGeocodeResponse"];
-export type Address = Schemas["Address"];
 export type Location = Schemas["Location"];
 export type RouteResponse = Schemas["RouteResponse"];
 export type Route = Schemas["Route"];
@@ -23,7 +21,6 @@ export type ErrorDetail = Schemas["ErrorDetail"];
 export type ErrorCode = ErrorDetail["code"];
 
 export type GeocodeParams = NonNullable<operations["geocode"]["parameters"]["query"]>;
-export type ReverseGeocodeParams = NonNullable<operations["reverseGeocode"]["parameters"]["query"]>;
 export type RouteParams = NonNullable<operations["route"]["parameters"]["query"]>;
 
 export const TRAVEL_MODES = ["driving", "walking"] as const satisfies readonly TravelMode[];

@@ -12,30 +12,15 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Geocode a place name or address
-         * @description Turns a place name or address into coordinates. Results are ranked: exact name matches first, then names that start with the query, then names containing every word of the query. An empty `results` array means nothing matched; it is not an error.
+         * Geocode a place, address or coordinate
+         * @description One geocoding endpoint in two directions:
+         *
+         *     - **Forward** — pass `q` (a place name or address). Results are ranked: exact name matches first, then names starting with the query, then names containing every word.
+         *     - **Reverse** — pass `lat` and `lon`. The single nearest meaningful location is returned, with `type` set to the match kind (`address`, `place`, `street`) and `distance_meters` set.
+         *
+         *     Both directions return the same shape: a `results` array (empty when nothing matched, which is not an error). Send either `q` or both `lat` and `lon`, not both and not neither.
          */
         get: operations["geocode"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/v1/reverse-geocode": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Find the address at a coordinate
-         * @description Turns a latitude/longitude into the nearest meaningful location: an address if one is close, otherwise a named place, otherwise the nearest named street (`match_type` tells you which). Returns 404 when nothing is found within 2 km.
-         */
-        get: operations["reverseGeocode"];
         put?: never;
         post?: never;
         delete?: never;
@@ -102,34 +87,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        /** Address */
-        Address: {
-            /**
-             * Formatted
-             * @example Sukhbaatar Square, Ulaanbaatar, Mongolia
-             */
-            formatted: string;
-            /**
-             * Name
-             * @description Building, place or street name.
-             */
-            name?: string | null;
-            /** House Number */
-            house_number?: string | null;
-            /** Street */
-            street?: string | null;
-            /**
-             * Neighborhood
-             * @description Sub-district, for example a khoroo (хороо).
-             */
-            neighborhood?: string | null;
-            /** District */
-            district?: string | null;
-            /** City */
-            city?: string | null;
-            /** Country */
-            country?: string | null;
-        };
         /** ErrorDetail */
         ErrorDetail: {
             /**
@@ -164,6 +121,7 @@ export interface components {
         GeocodeResponse: {
             /**
              * Query
+             * @description The text searched, or `lat,lon` for a reverse lookup.
              * @example Sukhbaatar Square
              */
             query: string;
@@ -206,10 +164,16 @@ export interface components {
             longitude: number;
             /**
              * Type
-             * @description Place category, for example `landmark` or `district`.
+             * @description Place category, or for reverse lookups the match kind (`address`, `place`, `street`).
              * @example place
              */
             type: string;
+            /**
+             * Distance Meters
+             * @description Only for reverse lookups: distance in metres from the requested point to this match.
+             * @example 12.4
+             */
+            distance_meters?: number | null;
         };
         /** HealthResponse */
         HealthResponse: {
@@ -271,24 +235,6 @@ export interface components {
                 [key: string]: "ok" | "fail" | "not_configured";
             };
         };
-        /** ReverseGeocodeResponse */
-        ReverseGeocodeResponse: {
-            /** @description The coordinates that were requested. */
-            location: components["schemas"]["Location"];
-            address: components["schemas"]["Address"];
-            /**
-             * Match Type
-             * @description What kind of feature the address was derived from.
-             * @enum {string}
-             */
-            match_type: "address" | "place" | "street";
-            /**
-             * Distance Meters
-             * @description Distance from the requested point to the match.
-             * @example 12.4
-             */
-            distance_meters: number;
-        };
         /** Route */
         Route: {
             /**
@@ -346,10 +292,14 @@ export type $defs = Record<string, never>;
 export interface operations {
     geocode: {
         parameters: {
-            query: {
-                /** @description Place name or address to search for. Latin and Cyrillic are both supported. */
-                q: string;
-                /** @description Maximum number of results. */
+            query?: {
+                /** @description Forward geocoding: place name or address. Latin and Cyrillic are both supported. */
+                q?: string | null;
+                /** @description Reverse geocoding: latitude (WGS84). */
+                lat?: number | null;
+                /** @description Reverse geocoding: longitude (WGS84). */
+                lon?: number | null;
+                /** @description Forward geocoding: maximum number of results. */
                 limit?: number;
             };
             header?: never;
@@ -415,187 +365,6 @@ export interface operations {
                      *       "error": {
                      *         "code": "API_KEY_REVOKED",
                      *         "message": "This API key has been revoked."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 408 REQUEST_TIMEOUT */
-            408: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "REQUEST_TIMEOUT",
-                     *         "message": "The data service did not respond in time."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 429 RATE_LIMIT_EXCEEDED */
-            429: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "RATE_LIMIT_EXCEEDED",
-                     *         "message": "Too many requests."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 500 INTERNAL_ERROR */
-            500: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "INTERNAL_ERROR",
-                     *         "message": "Internal server error."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 502 UPSTREAM_ERROR */
-            502: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "UPSTREAM_ERROR",
-                     *         "message": "The upstream data service returned an error."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 503 SERVICE_UNAVAILABLE */
-            503: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "SERVICE_UNAVAILABLE",
-                     *         "message": "The service is temporarily unavailable."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    reverseGeocode: {
-        parameters: {
-            query: {
-                /** @description Latitude in decimal degrees (WGS84). */
-                lat: number;
-                /** @description Longitude in decimal degrees (WGS84). */
-                lon: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReverseGeocodeResponse"];
-                };
-            };
-            /** @description 400 INVALID_REQUEST */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "INVALID_REQUEST",
-                     *         "message": "Invalid value for 'lat': must be between -90 and 90.",
-                     *         "details": {
-                     *           "field": "lat"
-                     *         }
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 401 INVALID_API_KEY */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "INVALID_API_KEY",
-                     *         "message": "The API key is missing or invalid."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "API_KEY_REVOKED",
-                     *         "message": "This API key has been revoked."
-                     *       }
-                     *     }
-                     */
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-            /** @description 404 NOT_FOUND */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    /**
-                     * @example {
-                     *       "error": {
-                     *         "code": "NOT_FOUND",
-                     *         "message": "No result was found for this request."
                      *       }
                      *     }
                      */

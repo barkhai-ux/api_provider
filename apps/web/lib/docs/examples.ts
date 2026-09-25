@@ -115,15 +115,9 @@ const GEOCODE_TYPES = `type GeocodeResult = {
   latitude: number;
   longitude: number;
   type: string;
+  distance_meters?: number; // reverse lookups only
 };
 type GeocodeResponse = { query: string; results: GeocodeResult[]; count: number };`;
-
-const REVERSE_TYPES = `type ReverseGeocodeResponse = {
-  location: { latitude: number; longitude: number };
-  address: { formatted: string; name: string | null; neighborhood: string | null; district: string | null };
-  match_type: "address" | "place" | "street";
-  distance_meters: number;
-};`;
 
 const ROUTE_TYPES = `type RouteResponse = {
   route: {
@@ -192,33 +186,38 @@ export function reverseGeocodeExamples(apiUrl: string, lat = 47.9184, lon = 106.
     ["lon", String(lon)],
   ];
   return [
-    { label: "cURL", lang: "bash", code: curlExample(apiUrl, "/v1/reverse-geocode", params) },
+    { label: "cURL", lang: "bash", code: curlExample(apiUrl, "/v1/geocode", params) },
     {
       label: "JavaScript",
       lang: "javascript",
-      code: fetchExample(apiUrl, "/v1/reverse-geocode", params, `console.log(body.address.formatted, body.match_type);`),
+      code: fetchExample(apiUrl, "/v1/geocode", params, `const [match] = body.results;
+if (match) console.log(match.address, match.type, match.distance_meters);`),
     },
     {
       label: "TypeScript",
       lang: "typescript",
       code: typedFetchExample(
         apiUrl,
-        "/v1/reverse-geocode",
+        "/v1/geocode",
         params,
-        REVERSE_TYPES,
-        "ReverseGeocodeResponse",
-        `console.log(body.address.formatted, body.match_type, body.distance_meters);`,
+        GEOCODE_TYPES,
+        "GeocodeResponse",
+        `const [match] = body.results;
+if (match) console.log(match.address, match.type, match.distance_meters);`,
       ),
     },
     {
       label: "Python",
       lang: "python",
-      code: pythonExample(apiUrl, "/v1/reverse-geocode", params, `print(body["address"]["formatted"], body["match_type"])`),
+      code: pythonExample(apiUrl, "/v1/geocode", params, `match = body["results"][0] if body["results"] else None
+if match:
+    print(match["address"], match["type"], match.get("distance_meters"))`),
     },
     {
       label: "Dart",
       lang: "dart",
-      code: dartExample(apiUrl, "/v1/reverse-geocode", params, `  print(body['address']['formatted']);`),
+      code: dartExample(apiUrl, "/v1/geocode", params, `  final results = body['results'] as List<dynamic>;
+  if (results.isNotEmpty) print(results.first['address']);`),
     },
   ];
 }

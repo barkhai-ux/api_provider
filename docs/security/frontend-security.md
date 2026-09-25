@@ -44,7 +44,7 @@ No `dangerouslySetInnerHTML` with user or ArcGIS data. Markdown is not rendered 
 
 | Route | Methods | Protection |
 |---|---|---|
-| `/api/v1/[endpoint]` | GET | Allowlist `geocode`, `reverse-geocode`, `route`; per-endpoint parameter allowlist; one value per parameter; format and range checks (NaN/Infinity, lat ±90, lon ±180, `q` 2–200, `limit` 1–20, `mode`); query ≤ 1 KB; upstream request built from scratch (Accept, Authorization with the server-only site key, X-Client-IP from a trusted header only); redirects refused; 25 s timeout (504); only JSON passed back, ≤ 2 MB, allowlisted headers; `no-store` |
+| `/api/v1/[endpoint]` | GET | Allowlist `geocode` (forward `q`, or reverse `lat`+`lon`) and `route`; per-endpoint parameter allowlist; one value per parameter; format and range checks (NaN/Infinity, lat ±90, lon ±180, `q` 2–200, `limit` 1–20, `mode`); query ≤ 1 KB; upstream request built from scratch (Accept, Authorization with the server-only site key, X-Client-IP from a trusted header only); redirects refused; 25 s timeout (504); only JSON passed back, ≤ 2 MB, allowlisted headers; `no-store` |
 | `/api/playground/token` | POST | Same-origin check (`Sec-Fetch-Site`/Origin), session required, body ≤ 1 KB, Zod-validated, ownership checked in Convex; `private, no-store` |
 | `/api/playground/keys`, `/api/session` | GET | Session required; minimal fields; `private, no-store` |
 | `/api/auth` | POST | Convex Auth proxy (Origin check); per-visitor throttle; errors mapped to stable codes |

@@ -11,12 +11,12 @@ from tests.conftest import ConvexFake, auth
 @pytest.mark.parametrize(
     ("path", "params"),
     [
-        ("/v1/reverse-geocode", {"lat": "nan", "lon": "106.9"}),
-        ("/v1/reverse-geocode", {"lat": "inf", "lon": "106.9"}),
-        ("/v1/reverse-geocode", {"lat": "-Infinity", "lon": "106.9"}),
-        ("/v1/reverse-geocode", {"lat": "1e309", "lon": "106.9"}),
-        ("/v1/reverse-geocode", {"lat": "90.0001", "lon": "106.9"}),
-        ("/v1/reverse-geocode", {"lat": "47.9", "lon": "-180.5"}),
+        ("/v1/geocode", {"lat": "nan", "lon": "106.9"}),
+        ("/v1/geocode", {"lat": "inf", "lon": "106.9"}),
+        ("/v1/geocode", {"lat": "-Infinity", "lon": "106.9"}),
+        ("/v1/geocode", {"lat": "1e309", "lon": "106.9"}),
+        ("/v1/geocode", {"lat": "90.0001", "lon": "106.9"}),
+        ("/v1/geocode", {"lat": "47.9", "lon": "-180.5"}),
         ("/v1/geocode", {"q": "a"}),
         ("/v1/geocode", {"q": "x" * 201}),
         ("/v1/geocode", {"q": "sukh", "limit": "0"}),

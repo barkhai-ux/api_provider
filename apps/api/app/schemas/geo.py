@@ -28,38 +28,23 @@ class GeocodeResult(BaseModel):
     address: str | None = Field(default=None, examples=["Ulaanbaatar, Mongolia"])
     latitude: float = Field(examples=[47.9184])
     longitude: float = Field(examples=[106.9177])
-    type: str = Field(description="Place category, for example `landmark` or `district`.", examples=["place"])
+    type: str = Field(
+        description="Place category, or for reverse lookups the match kind (`address`, `place`, `street`).",
+        examples=["place"],
+    )
+    distance_meters: float | None = Field(
+        default=None,
+        description="Only for reverse lookups: distance in metres from the requested point to this match.",
+        examples=[12.4],
+    )
 
 
 class GeocodeResponse(BaseModel):
-    query: str = Field(examples=["Sukhbaatar Square"])
+    query: str = Field(
+        description="The text searched, or `lat,lon` for a reverse lookup.", examples=["Sukhbaatar Square"]
+    )
     results: list[GeocodeResult]
     count: int = Field(description="Number of results returned.", examples=[1])
-
-
-# --- Reverse geocoding -------------------------------------------------------------
-
-
-class Address(BaseModel):
-    formatted: str = Field(examples=["Sukhbaatar Square, Ulaanbaatar, Mongolia"])
-    name: str | None = Field(default=None, description="Building, place or street name.")
-    house_number: str | None = None
-    street: str | None = None
-    neighborhood: str | None = Field(default=None, description="Sub-district, for example a khoroo (хороо).")
-    district: str | None = None
-    city: str | None = None
-    country: str | None = None
-
-
-class ReverseGeocodeResponse(BaseModel):
-    location: Location = Field(description="The coordinates that were requested.")
-    address: Address
-    match_type: Literal["address", "place", "street"] = Field(
-        description="What kind of feature the address was derived from."
-    )
-    distance_meters: float = Field(
-        description="Distance from the requested point to the match.", examples=[12.4]
-    )
 
 
 # --- Routing -----------------------------------------------------------------------

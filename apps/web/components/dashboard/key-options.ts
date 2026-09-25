@@ -2,7 +2,6 @@
 
 export const KEY_ENDPOINTS = [
   { id: "geocode", label: "Geocoding", shortLabel: "Geocoding", path: "/v1/geocode" },
-  { id: "reverse-geocode", label: "Reverse geocoding", shortLabel: "Reverse", path: "/v1/reverse-geocode" },
   { id: "route", label: "Routing", shortLabel: "Routing", path: "/v1/route" },
 ] as const;
 export type KeyEndpoint = (typeof KEY_ENDPOINTS)[number]["id"];

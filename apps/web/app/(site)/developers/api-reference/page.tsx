@@ -23,13 +23,11 @@ export const metadata: Metadata = {
 
 const PLAYGROUND_BY_PATH: Record<string, PlaygroundEndpointId> = {
   "/v1/geocode": "geocode",
-  "/v1/reverse-geocode": "reverse-geocode",
   "/v1/route": "route",
 };
 
 const DOCS_BY_PATH: Record<string, string> = {
   "/v1/geocode": "/developers/docs/geocoding",
-  "/v1/reverse-geocode": "/developers/docs/reverse-geocoding",
   "/v1/route": "/developers/docs/routing",
 };
 

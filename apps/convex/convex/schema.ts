@@ -1,7 +1,7 @@
 import { authTables } from "@convex-dev/auth/server";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
-import { apiEndpointValidator } from "./lib/endpoints";
+import { storedEndpointValidator } from "./lib/endpoints";
 
 /**
  * Data model for developer accounts, API keys, usage and rate limits.
@@ -41,7 +41,7 @@ export default defineSchema({
     // Legacy: keys used to be "live" or "test". No longer written.
     environment: v.optional(v.union(v.literal("live"), v.literal("test"))),
     // Endpoints the key may call. Undefined: all endpoints (site key, older keys).
-    endpoints: v.optional(v.array(apiEndpointValidator)),
+    endpoints: v.optional(v.array(storedEndpointValidator)),
     rateLimitPerMinute: v.optional(v.number()),
     // The website's server-side key: limited per visitor IP instead of per key.
     isSiteKey: v.optional(v.boolean()),

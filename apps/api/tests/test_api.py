@@ -116,8 +116,9 @@ async def test_endpoint_is_sent_to_convex(
 ) -> None:
     arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
     await client.get("/v1/geocode", params={"q": "sukh"}, headers=auth())
-    await client.get("/v1/reverse-geocode", params={"lat": 47.9, "lon": 106.9}, headers=auth())
-    assert [call["endpoint"] for call in convex.authorize_calls] == ["geocode", "reverse-geocode"]
+    await client.get("/v1/geocode", params={"lat": 47.9, "lon": 106.9}, headers=auth())
+    # Forward and reverse are one service, so both authorize as "geocode".
+    assert [call["endpoint"] for call in convex.authorize_calls] == ["geocode", "geocode"]
 
 
 async def test_key_limited_to_other_endpoints_is_refused(
@@ -299,18 +300,18 @@ async def test_reverse_geocode_prefers_addresses(client: httpx.AsyncClient, arcg
             ),
         ],
     )
-    response = await client.get(
-        "/v1/reverse-geocode", params={"lat": 47.9191, "lon": 106.9177}, headers=auth()
-    )
+    response = await client.get("/v1/geocode", params={"lat": 47.9191, "lon": 106.9177}, headers=auth())
     assert response.status_code == 200
     body = response.json()
-    assert body["location"] == {"latitude": 47.9191, "longitude": 106.9177}
+    assert body["query"] == "47.9191,106.918"
+    assert body["count"] == 1
+    result = body["results"][0]
     assert (
-        body["address"]["formatted"]
-        == "Government Palace, 1 Chingis Avenue, Sukhbaatar District, Ulaanbaatar, Mongolia"
+        result["address"] == "Government Palace, 1 Chingis Avenue, Sukhbaatar District, Ulaanbaatar, Mongolia"
     )
-    assert body["match_type"] == "address"
-    assert body["distance_meters"] < 50
+    assert result["type"] == "address"
+    assert result["distance_meters"] < 50
+    assert result["latitude"] == pytest.approx(47.9192, abs=1e-4)
 
 
 async def test_reverse_geocode_falls_back_to_places_then_streets(
@@ -319,24 +320,24 @@ async def test_reverse_geocode_falls_back_to_places_then_streets(
     arcgis(ADDRESSES_URL, ADDRESS_FIELDS, [])
     arcgis(PLACES_URL, PLACE_FIELDS, [])
     arcgis(ROADS_URL, ROAD_FIELDS, grid_roads(), geometry_type="esriGeometryPolyline")
-    response = await client.get(
-        "/v1/reverse-geocode", params={"lat": 47.9151, "lon": 106.905}, headers=auth()
-    )
-    body = response.json()
-    assert body["match_type"] == "street"
-    assert body["address"]["street"] == "East-West 47.915"
+    response = await client.get("/v1/geocode", params={"lat": 47.9151, "lon": 106.905}, headers=auth())
+    result = response.json()["results"][0]
+    assert result["type"] == "street"
+    assert "East-West 47.915" in result["name"] or "East-West 47.915" in result["address"]
 
 
-async def test_reverse_geocode_not_found(client: httpx.AsyncClient, arcgis: ArcGISMocker) -> None:
+async def test_reverse_geocode_nothing_found_is_empty_not_an_error(
+    client: httpx.AsyncClient, arcgis: ArcGISMocker
+) -> None:
     for url, fields in (
         (ADDRESSES_URL, ADDRESS_FIELDS),
         (PLACES_URL, PLACE_FIELDS),
         (ROADS_URL, ROAD_FIELDS),
     ):
         arcgis(url, fields, [])
-    response = await client.get("/v1/reverse-geocode", params={"lat": 47.0, "lon": 100.0}, headers=auth())
-    assert response.status_code == 404
-    assert error_of(response)["code"] == "NOT_FOUND"
+    response = await client.get("/v1/geocode", params={"lat": 47.0, "lon": 100.0}, headers=auth())
+    assert response.status_code == 200
+    assert response.json()["results"] == []
 
 
 @pytest.mark.parametrize(
@@ -347,12 +348,19 @@ async def test_reverse_geocode_not_found(client: httpx.AsyncClient, arcgis: ArcG
         ({"lat": "abc", "lon": 106}, "lat"),
         ({"lon": 106}, "lat"),
         ({"lat": "nan", "lon": 106}, "lat"),
+        ({"q": "sukh", "lat": 47, "lon": 106}, "q"),
     ],
 )
 async def test_reverse_geocode_validation(client: httpx.AsyncClient, params: dict, field: str) -> None:
-    response = await client.get("/v1/reverse-geocode", params=params, headers=auth())
+    response = await client.get("/v1/geocode", params=params, headers=auth())
     assert response.status_code == 400
     assert error_of(response)["details"]["field"] == field
+
+
+async def test_geocode_requires_q_or_coordinates(client: httpx.AsyncClient) -> None:
+    response = await client.get("/v1/geocode", headers=auth())
+    assert response.status_code == 400
+    assert error_of(response)["details"]["field"] == "q"
 
 
 # --- Routing ----------------------------------------------------------------------------------
@@ -589,7 +597,6 @@ async def test_openapi_describes_only_the_public_api(client: httpx.AsyncClient) 
     schema = (await client.get("/openapi.json")).json()
     assert set(schema["paths"]) == {
         "/v1/geocode",
-        "/v1/reverse-geocode",
         "/v1/route",
         "/health",
         "/health/ready",

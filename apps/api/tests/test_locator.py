@@ -140,19 +140,16 @@ async def test_reverse_geocode_uses_the_locator(locator_settings, mock_router) -
     app = create_app(locator_settings, http_client=httpx.AsyncClient())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as http:
         response = await http.get(
-            "/v1/reverse-geocode", params={"lat": 47.9184, "lon": 106.9177}, headers=auth()
+            "/v1/geocode", params={"lat": 47.9184, "lon": 106.9177}, headers=auth()
         )
-    body = response.json()
-    assert body["address"]["formatted"] == "Сүхбаатарын талбай, 6-р хороо, Сүхбаатар, Mongolia"
-    assert body["address"]["name"] == "Сүхбаатарын талбай"
-    assert body["address"]["neighborhood"] == "6-р хороо"
-    assert body["address"]["district"] == "Сүхбаатар"
-    assert body["address"]["country"] == "Mongolia"  # the locator's bogus CntryName is ignored
-    assert body["match_type"] == "place"
-    assert 40 < body["distance_meters"] < 60
+    result = response.json()["results"][0]
+    assert result["address"] == "Сүхбаатарын талбай, 6-р хороо, Сүхбаатар, Mongolia"
+    assert result["name"] == "Сүхбаатарын талбай"
+    assert result["type"] == "place"
+    assert 40 < result["distance_meters"] < 60
 
 
-async def test_reverse_geocode_miss_widens_then_returns_404(locator_settings, mock_router) -> None:
+async def test_reverse_geocode_miss_widens_then_returns_empty(locator_settings, mock_router) -> None:
     route = mock_router.get(f"{LOCATOR}/reverseGeocode").mock(
         return_value=httpx.Response(
             200,
@@ -170,8 +167,9 @@ async def test_reverse_geocode_miss_widens_then_returns_404(locator_settings, mo
     locator_settings.arcgis_routing_feature_server = None
     app = create_app(locator_settings, http_client=httpx.AsyncClient())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as http:
-        response = await http.get("/v1/reverse-geocode", params={"lat": 44.0, "lon": 100.0}, headers=auth())
-    assert response.status_code == 404
+        response = await http.get("/v1/geocode", params={"lat": 44.0, "lon": 100.0}, headers=auth())
+    assert response.status_code == 200
+    assert response.json()["results"] == []
     assert [c.request.url.params["distance"] for c in route.calls] == ["100", "500", "2000"]
 
 

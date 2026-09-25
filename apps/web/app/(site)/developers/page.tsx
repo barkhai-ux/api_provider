@@ -51,17 +51,16 @@ console.log(route.distance_meters, route.duration_seconds);`,
 import httpx
 
 response = httpx.get(
-    "${apiUrl}/v1/reverse-geocode",
+    "${apiUrl}/v1/geocode",
     params={"lat": 47.9184, "lon": 106.9177},
     headers={"Authorization": f"Bearer {os.environ['GEO_API_KEY']}"},
 )
-print(response.json()["address"]["formatted"])`,
+print(response.json()["results"][0]["address"])`,
   },
 ];
 
 const ENDPOINTS = [
-  { label: "Geocoding", endpoint: "/v1/geocode", body: "Place names and addresses to coordinates." },
-  { label: "Reverse geocoding", endpoint: "/v1/reverse-geocode", body: "Coordinates to the nearest address or place." },
+  { label: "Geocoding", endpoint: "/v1/geocode", body: "Place names and addresses to coordinates, and coordinates back to the nearest place." },
   { label: "Routing", endpoint: "/v1/route", body: "Routes, distances and travel times." },
 ] as const;
 
@@ -155,7 +154,7 @@ export default async function DevelopersPage() {
 
       {/* Endpoint band */}
       <section aria-label="Endpoints" className="border-y">
-        <div className="mx-auto grid max-w-[1400px] sm:grid-cols-3">
+        <div className="mx-auto grid max-w-[1400px] sm:grid-cols-2">
           {ENDPOINTS.map((item, index) => (
             <div
               key={item.endpoint}
@@ -192,7 +191,7 @@ export default async function DevelopersPage() {
             eyebrow="Reverse geocoding"
             title="Turn a tap on the map into an address"
             body="Send a latitude and longitude, get the nearest address, place or street with its khoroo and district, and how far away it is."
-            link={{ href: "/developers/docs/reverse-geocoding", label: "Reverse geocoding API" }}
+            link={{ href: "/developers/docs/geocoding", label: "Geocoding API" }}
             visual={<ReverseGeocodingVisual />}
           />
           <Feature

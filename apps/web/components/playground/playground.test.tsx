@@ -87,7 +87,7 @@ describe("Playground", () => {
     const user = userEvent.setup();
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
       if (url === "/api/playground/keys") {
-        return json({ keys: [{ id: "key_1", name: "Backend", maskedKey: "geo_ab12••••", endpoints: ["geocode", "reverse-geocode", "route"] }] });
+        return json({ keys: [{ id: "key_1", name: "Backend", maskedKey: "geo_ab12••••", endpoints: ["geocode", "route"] }] });
       }
       if (url === "/api/playground/token") {
         expect(JSON.parse(String(init?.body))).toEqual({ keyId: "key_1" });
@@ -95,14 +95,14 @@ describe("Playground", () => {
       }
       return json({ error: { code: "NOT_FOUND", message: "No address or place was found near this location." } }, { status: 404 });
     });
-    render(<Playground endpoint="reverse-geocode" />, { wrapper });
+    render(<Playground endpoint="geocode" />, { wrapper });
 
     expect(await screen.findByRole("option", { name: /Backend/ })).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: /send request/i }));
 
     expect(await screen.findByTestId("status-line")).toHaveTextContent("404 Not Found");
     const apiCall = fetchMock.mock.calls.find(([called]) => String(called).startsWith(publicConfig.apiUrl))!;
-    expect(apiCall[0]).toBe(`${publicConfig.apiUrl}/v1/reverse-geocode?lat=47.9184&lon=106.9177`);
+    expect(apiCall[0]).toBe(`${publicConfig.apiUrl}/v1/geocode?q=Sukhbaatar%20Square&limit=5`);
     expect((apiCall[1] as RequestInit).headers).toMatchObject({ Authorization: `Bearer ${PLAYGROUND_TOKEN}` });
   });
 

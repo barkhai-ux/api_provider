@@ -47,7 +47,7 @@ from app.services.geo.base import (
     RouteResult,
     RoutingProvider,
 )
-from app.services.geo.geocoding import GeocodingService, ReverseGeocodingService
+from app.services.geo.geocoding import GeocodingService
 from app.services.geo.routing import RoutingService
 
 
@@ -87,7 +87,6 @@ class ChainedReverseGeocodingProvider:
 @dataclass(slots=True)
 class GeoServices:
     geocoding: GeocodingService
-    reverse_geocoding: ReverseGeocodingService
     routing: RoutingService
     routing_provider: RoutingProvider
     arcgis_client: ArcGISFeatureServerClient
@@ -314,9 +313,9 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
     return GeoServices(
         geocoding=GeocodingService(
             geocoding_provider,
+            reverse_provider,
             TTLCache(settings.cache_geocode_ttl_seconds, settings.cache_geocode_max_entries),
         ),
-        reverse_geocoding=ReverseGeocodingService(reverse_provider),
         routing=RoutingService(routing_provider, settings.routing_max_distance_km),
         routing_provider=routing_provider,
         arcgis_client=client,

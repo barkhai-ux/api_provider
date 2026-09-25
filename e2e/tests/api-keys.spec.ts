@@ -43,7 +43,7 @@ test("developer registers, creates a key, calls the API, and revokes the key", a
 
 test("a key only calls the endpoints chosen for it", async ({ page, request }) => {
   await register(page);
-  const secret = await createKey(page, "Geocoding only", { without: ["Reverse geocoding", "Routing"], expiry: "Never" });
+  const secret = await createKey(page, "Geocoding only", { without: ["Routing"], expiry: "Never" });
 
   const row = page.getByRole("row", { name: "API key Geocoding only" });
   await expect(row).toContainText("Geocoding");

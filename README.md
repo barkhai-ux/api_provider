@@ -36,7 +36,7 @@ flowchart TB
     end
 
     subgraph API["Public API gateway (apps/api, FastAPI)"]
-        gw["/v1/geocode · /v1/reverse-geocode · /v1/route"]
+        gw["/v1/geocode · /v1/route"]
         svc["Service layer<br/>GeocodingService · ReverseGeocodingService · RoutingService"]
         adapter["ArcGISFeatureServerClient + providers<br/>(pagination, retries, timeouts, validation)"]
         graph["In-memory road graph + A*"]

@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, type MutationCtx, query } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
-import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator } from "./lib/endpoints";
+import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator, normalizeEndpoints } from "./lib/endpoints";
 import { defaultRateLimitPerMinute, requireEnv } from "./lib/env";
 import {
   MAX_ACTIVE_KEYS_PER_USER,
@@ -43,7 +43,7 @@ function summarize(key: Doc<"apiKeys">, requests: number, thisMinute: number): A
     id: key._id,
     name: key.name,
     maskedKey: maskedKey(key.keyPrefix),
-    endpoints: key.endpoints ?? [...API_ENDPOINTS],
+    endpoints: key.endpoints ? normalizeEndpoints(key.endpoints) : [...API_ENDPOINTS],
     createdAt: key._creationTime,
     lastUsedAt: key.lastUsedAt ?? null,
     expiresAt: key.expiresAt ?? null,

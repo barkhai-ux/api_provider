@@ -7,7 +7,7 @@ import { Playground } from "@/components/playground/playground";
 import { publicConfig } from "@/lib/config";
 import { DOCS_TOC } from "@/lib/docs-nav";
 import { errorsFor } from "@/lib/docs/errors";
-import { geocodeExamples } from "@/lib/docs/examples";
+import { geocodeExamples, reverseGeocodeExamples } from "@/lib/docs/examples";
 import { GEOCODE_EMPTY_RESPONSE, GEOCODE_RESPONSE } from "@/lib/docs/responses";
 
 export const metadata: Metadata = {
@@ -21,7 +21,7 @@ export default function GeocodingPage() {
       href="/developers/docs/geocoding"
       eyebrow="Endpoints"
       title="Geocoding"
-      description="Turn a place name or address into coordinates. Use it for search boxes, autocomplete and address lookup."
+      description="One endpoint in two directions: a place name or address to coordinates (q), or coordinates to the nearest place (lat & lon)."
       toc={DOCS_TOC.geocoding}
     >
       <H2 id="request">Request</H2>
@@ -37,11 +37,10 @@ export default function GeocodingPage() {
           {
             name: "q",
             type: "string",
-            required: true,
             description: (
               <>
-                Place name or address, 2 to 200 characters, with at least 2 letters or digits. Latin and Cyrillic are
-                both supported, for example <C>Sukhbaatar Square</C> or <C>Сүхбаатарын талбай</C>.
+                Forward geocoding: place name or address, 2 to 200 characters, with at least 2 letters or digits. Latin
+                and Cyrillic are both supported, for example <C>Sukhbaatar Square</C> or <C>Сүхбаатарын талбай</C>.
               </>
             ),
           },
@@ -50,9 +49,19 @@ export default function GeocodingPage() {
             type: "integer",
             description: (
               <>
-                Maximum number of results, 1 to 20. Default <C>5</C>.
+                Forward geocoding: maximum number of results, 1 to 20. Default <C>5</C>.
               </>
             ),
+          },
+          {
+            name: "lat",
+            type: "number",
+            description: <>Reverse geocoding: latitude in decimal degrees (WGS84), −90 to 90.</>,
+          },
+          {
+            name: "lon",
+            type: "number",
+            description: <>Reverse geocoding: longitude in decimal degrees (WGS84), −180 to 180.</>,
           },
         ]}
       />
@@ -101,6 +110,16 @@ export default function GeocodingPage() {
         starts (in JavaScript, pass an <C>AbortController</C> signal to <C>fetch</C>), and do not search until the
         user has typed at least 2 characters.
       </Callout>
+
+      <H2 id="reverse">Reverse geocoding</H2>
+      <P>
+        Send <C>lat</C> and <C>lon</C> instead of <C>q</C> to turn a coordinate into the nearest meaningful place. The
+        response is the same shape as a forward search, with one result: <C>type</C> is the match kind (<C>address</C>,{" "}
+        <C>place</C> or <C>street</C>) and <C>distance_meters</C> is how far the match is from your point. Nothing found
+        nearby is <C>200 OK</C> with an empty <C>results</C> list, not an error. Send either <C>q</C> or both{" "}
+        <C>lat</C> and <C>lon</C>, never both and never neither.
+      </P>
+      <CodeTabs examples={reverseGeocodeExamples(publicConfig.apiUrl)} />
 
       <H2 id="errors">Errors</H2>
       <ErrorTable errors={errorsFor([400, 401, 403, 408, 429, 500, 502, 503])} showAction={false} />

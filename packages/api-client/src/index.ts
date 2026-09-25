@@ -1,6 +1,7 @@
 export { DEFAULT_BASE_URL, DEFAULT_TIMEOUT_MS, GeoClient } from "./client";
 export type {
   GeocodeParams,
+  GeocodeQuery,
   GeoClientOptions,
   LngLat,
   RequestOptions,
@@ -10,12 +11,10 @@ export type {
 export { GeoApiError } from "./errors";
 export type { ClientErrorCode, RateLimitInfo } from "./errors";
 export type {
-  Address,
   ErrorCode,
   GeocodeResponse,
   GeocodeResult,
   Location,
-  ReverseGeocodeResponse,
   Route,
   RouteResponse,
   TravelMode,

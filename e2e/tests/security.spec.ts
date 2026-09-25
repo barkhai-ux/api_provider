@@ -92,7 +92,7 @@ test("the map proxy is not a general proxy", async ({ request }) => {
   expect(extra.status()).toBe(400);
   const duplicated = await request.get("/api/v1/geocode?q=sukh&q=other");
   expect(duplicated.status()).toBe(400);
-  const nan = await request.get("/api/v1/reverse-geocode?lat=NaN&lon=106.9");
+  const nan = await request.get("/api/v1/geocode?lat=NaN&lon=106.9");
   expect(nan.status()).toBe(400);
 });
 

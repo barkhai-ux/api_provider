@@ -4,7 +4,7 @@
 
 | Step | Behaviour | Code |
 |---|---|---|
-| Create | `geo_` + 32 characters from `crypto.getRandomValues` (base62, rejection sampling, about 190 bits). The developer chooses the endpoints (`geocode`, `reverse-geocode`, `route`, at least one) and an expiry (30/60/90 days, 1 year, a date up to 5 years ahead, or never). | `apps/convex/convex/apiKeys.ts`, `lib/keys.ts` |
+| Create | `geo_` + 32 characters from `crypto.getRandomValues` (base62, rejection sampling, about 190 bits). The developer chooses the endpoints (`geocode`, `route`, at least one) and an expiry (30/60/90 days, 1 year, a date up to 5 years ahead, or never). | `apps/convex/convex/apiKeys.ts`, `lib/keys.ts` |
 | Store | Only `HMAC-SHA256(API_KEY_PEPPER, key)` and a display prefix (`geo_ab12`). The secret is returned once and never stored. | `apiKeys.ts` `create` |
 | Use | Only `Authorization: Bearer <key>`. Query-string keys are ignored. The API checks the format locally, hashes the key and sends only the hash to Convex. | `apps/api/app/api/deps.py`, `app/core/security.py` |
 | Regenerate | New secret for the same key; the old one stops working at once; playground tokens are deleted. Expired keys cannot be regenerated. | `apiKeys.ts` `regenerate` |

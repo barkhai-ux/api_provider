@@ -182,19 +182,18 @@ export function MapApp() {
       setSelection({ id: `pin-${lngLat.join(",")}`, lngLat, kind: "pin" });
       setPopup({ lngLat, title: "Looking up this location…", lines: [coordinates], actions: [] });
       try {
-        const result = await siteGeoClient.reverseGeocode({ lat: lngLat[1], lon: lngLat[0] }, { signal: controller.signal });
-        const { address } = result;
-        const title = address.name ?? address.street ?? address.formatted.split(",")[0] ?? "Selected location";
-        setPopup(placePopup(title, [address.formatted, coordinates], lngLat));
+        const { results } = await siteGeoClient.reverseGeocode({ lat: lngLat[1], lon: lngLat[0] }, { signal: controller.signal });
+        const match = results[0];
+        if (match === undefined) {
+          setPopup(placePopup("Dropped pin", ["No address found nearby.", coordinates], lngLat));
+          return;
+        }
+        const title = match.name || (match.address ?? "").split(",")[0] || "Selected location";
+        setPopup(placePopup(title, [match.address ?? coordinates, coordinates], lngLat));
       } catch (error) {
         if (controller.signal.aborted) return;
-        const notFound = error instanceof GeoApiError && error.code === "NOT_FOUND";
         setPopup(
-          placePopup(
-            notFound ? "Dropped pin" : "Address unavailable",
-            [notFound ? "No address found nearby." : friendlyError(error, "reverse"), coordinates],
-            lngLat,
-          ),
+          placePopup("Address unavailable", [friendlyError(error, "reverse"), coordinates], lngLat),
         );
       }
     },

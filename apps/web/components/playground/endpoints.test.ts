@@ -30,7 +30,6 @@ describe("playground request building", () => {
   it("validates like the API", () => {
     expect(PLAYGROUND_ENDPOINTS.geocode.schema.safeParse({ q: "a", limit: "5" }).success).toBe(false);
     expect(PLAYGROUND_ENDPOINTS.geocode.schema.safeParse({ q: "ab", limit: "21" }).success).toBe(false);
-    expect(PLAYGROUND_ENDPOINTS["reverse-geocode"].schema.safeParse({ lat: "95", lon: "106" }).success).toBe(false);
     expect(
       PLAYGROUND_ENDPOINTS.route.schema.safeParse({ origin: "47.9,106.9", destination: "106.9,47.9", mode: "driving" })
         .success,

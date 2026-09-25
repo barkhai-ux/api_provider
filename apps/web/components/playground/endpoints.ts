@@ -2,7 +2,7 @@ import { z } from "zod";
 
 /** Endpoints the playground can call, with client-side checks that mirror the API. */
 
-export type PlaygroundEndpointId = "geocode" | "reverse-geocode" | "route";
+export type PlaygroundEndpointId = "geocode" | "route";
 
 export type ParamSpec = {
   name: string;
@@ -54,7 +54,7 @@ export const PLAYGROUND_ENDPOINTS: Record<PlaygroundEndpointId, PlaygroundEndpoi
         kind: "text",
         required: true,
         defaultValue: "Sukhbaatar Square",
-        description: "Place name or address, 2–200 characters.",
+        description: "Place name or address, 2–200 characters. (Reverse geocoding uses lat & lon; see the docs.)",
       },
       {
         name: "limit",
@@ -70,33 +70,6 @@ export const PLAYGROUND_ENDPOINTS: Record<PlaygroundEndpointId, PlaygroundEndpoi
       q: z.string().trim().min(2, "At least 2 characters.").max(200, "At most 200 characters."),
       limit: z.union([z.literal(""), number(1, 20, true)]),
     }),
-  },
-  "reverse-geocode": {
-    id: "reverse-geocode",
-    method: "GET",
-    path: "/v1/reverse-geocode",
-    title: "Reverse geocode",
-    params: [
-      {
-        name: "lat",
-        label: "lat",
-        kind: "number",
-        required: true,
-        defaultValue: "47.9184",
-        description: "Latitude, -90 to 90.",
-        inputMode: "decimal",
-      },
-      {
-        name: "lon",
-        label: "lon",
-        kind: "number",
-        required: true,
-        defaultValue: "106.9177",
-        description: "Longitude, -180 to 180.",
-        inputMode: "decimal",
-      },
-    ],
-    schema: z.object({ lat: number(-90, 90), lon: number(-180, 180) }),
   },
   route: {
     id: "route",

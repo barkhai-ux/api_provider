@@ -25,7 +25,7 @@ When set, the locator answers both geocoding endpoints, and any FeatureServer la
   | `type` | `Type`, or `Addr_type` when `Type` is `Other`; lower-cased, e.g. `poi` |
   | `id` | stable hash of the name and location (`loc_…`) |
 
-**`/v1/reverse-geocode`**
+**`/v1/geocode` (reverse: `lat` & `lon`)**
 - `reverseGeocode` runs with an expanding `distance`: 100 m, then 500 m, then 2 km.
 - The locator answers a miss with HTTP 400 "Unable to find address for the specified location". The adapter treats that as "nothing here" and tries the next radius, then returns `404 NOT_FOUND`.
 - Field mapping:
@@ -96,7 +96,7 @@ ArcGIS Enterprise services that answer `499 Token Required` need a token. Two op
 | Variable | Used by | Geometry | Notes |
 |---|---|---|---|
 | `ARCGIS_GEOCODING_FEATURE_SERVER` | `/v1/geocode`, reverse fallback | points (lines/polygons also work: a representative point is used) | named places |
-| `ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER` | `/v1/reverse-geocode` | points | address points |
+| `ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER` | `/v1/geocode` (reverse) | points | address points |
 | `ARCGIS_ROUTING_FEATURE_SERVER` | `/v1/route`, reverse fallback | polylines | road centerlines |
 
 - Each value is a layer URL (`…/FeatureServer/<id>`). A service URL (`…/FeatureServer`) means layer 0.

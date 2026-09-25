@@ -26,7 +26,6 @@ export default function DocsIntroductionPage() {
         columns={[{ header: "API", className: "w-44" }, { header: "Endpoint", className: "w-48" }, { header: "Use it to" }]}
         rows={[
           [<A key="a" href="/developers/docs/geocoding">Geocoding</A>, <C key="b">GET /v1/geocode</C>, "Turn place names and addresses into coordinates, for search boxes and autocomplete."],
-          [<A key="a" href="/developers/docs/reverse-geocoding">Reverse geocoding</A>, <C key="b">GET /v1/reverse-geocode</C>, "Turn a latitude and longitude into the nearest address, place or street."],
           [<A key="a" href="/developers/docs/routing">Routing</A>, <C key="b">GET /v1/route</C>, "Get the fastest driving or walking route, its distance, travel time and a GeoJSON line."],
         ]}
       />

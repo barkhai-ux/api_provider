@@ -8,7 +8,7 @@ import { secretFileContents } from "./one-time-secret-dialog";
 import { renderWithQueryClient } from "./test-utils";
 
 const NEW_SECRET = "geo_Secret000000000000000000000000001";
-const ALL_ENDPOINTS: ApiKey["endpoints"] = ["geocode", "reverse-geocode", "route"];
+const ALL_ENDPOINTS: ApiKey["endpoints"] = ["geocode", "route"];
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 const keys: ApiKey[] = [
@@ -119,7 +119,7 @@ describe("API keys page", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create key" }));
     expect(mocks.create).toHaveBeenCalledWith({
       name: "Geocoder",
-      endpoints: ["geocode", "reverse-geocode"],
+      endpoints: ["geocode"],
       expiresAt: null,
     });
   });
@@ -130,7 +130,7 @@ describe("API keys page", () => {
     await user.click(screen.getByRole("button", { name: "Create API key" }));
     const dialog = await screen.findByRole("dialog", { name: "Create API key" });
     await user.type(within(dialog).getByLabelText("Name"), "Nothing");
-    for (const name of [/^Geocoding/, /Reverse geocoding/, /Routing/]) {
+    for (const name of [/^Geocoding/, /Routing/]) {
       await user.click(within(dialog).getByRole("checkbox", { name }));
     }
     await user.click(within(dialog).getByRole("button", { name: "Create key" }));

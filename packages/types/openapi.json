@@ -17,8 +17,8 @@
         "tags": [
           "Geocoding"
         ],
-        "summary": "Geocode a place name or address",
-        "description": "Turns a place name or address into coordinates. Results are ranked: exact name matches first, then names that start with the query, then names containing every word of the query. An empty `results` array means nothing matched; it is not an error.",
+        "summary": "Geocode a place, address or coordinate",
+        "description": "One geocoding endpoint in two directions:\n\n- **Forward** — pass `q` (a place name or address). Results are ranked: exact name matches first, then names starting with the query, then names containing every word.\n- **Reverse** — pass `lat` and `lon`. The single nearest meaningful location is returned, with `type` set to the match kind (`address`, `place`, `street`) and `distance_meters` set.\n\nBoth directions return the same shape: a `results` array (empty when nothing matched, which is not an error). Send either `q` or both `lat` and `lon`, not both and not neither.",
         "operationId": "geocode",
         "security": [
           {
@@ -29,18 +29,71 @@
           {
             "name": "q",
             "in": "query",
-            "required": true,
+            "required": false,
             "schema": {
-              "type": "string",
-              "minLength": 2,
-              "maxLength": 200,
-              "description": "Place name or address to search for. Latin and Cyrillic are both supported.",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 2,
+                  "maxLength": 200
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Forward geocoding: place name or address. Latin and Cyrillic are both supported.",
               "examples": [
                 "Sukhbaatar Square"
               ],
               "title": "Q"
             },
-            "description": "Place name or address to search for. Latin and Cyrillic are both supported."
+            "description": "Forward geocoding: place name or address. Latin and Cyrillic are both supported."
+          },
+          {
+            "name": "lat",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 90,
+                  "minimum": -90
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reverse geocoding: latitude (WGS84).",
+              "examples": [
+                47.9184
+              ],
+              "title": "Lat"
+            },
+            "description": "Reverse geocoding: latitude (WGS84)."
+          },
+          {
+            "name": "lon",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 180,
+                  "minimum": -180
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Reverse geocoding: longitude (WGS84).",
+              "examples": [
+                106.9177
+              ],
+              "title": "Lon"
+            },
+            "description": "Reverse geocoding: longitude (WGS84)."
           },
           {
             "name": "limit",
@@ -50,11 +103,11 @@
               "type": "integer",
               "maximum": 20,
               "minimum": 1,
-              "description": "Maximum number of results.",
+              "description": "Forward geocoding: maximum number of results.",
               "default": 5,
               "title": "Limit"
             },
-            "description": "Maximum number of results."
+            "description": "Forward geocoding: maximum number of results."
           }
         ],
         "responses": {
@@ -111,214 +164,6 @@
                   "error": {
                     "code": "API_KEY_REVOKED",
                     "message": "This API key has been revoked."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "408": {
-            "description": "408 REQUEST_TIMEOUT",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "REQUEST_TIMEOUT",
-                    "message": "The data service did not respond in time."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "429 RATE_LIMIT_EXCEEDED",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "RATE_LIMIT_EXCEEDED",
-                    "message": "Too many requests."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "500 INTERNAL_ERROR",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "INTERNAL_ERROR",
-                    "message": "Internal server error."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "502": {
-            "description": "502 UPSTREAM_ERROR",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "UPSTREAM_ERROR",
-                    "message": "The upstream data service returned an error."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "503 SERVICE_UNAVAILABLE",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "SERVICE_UNAVAILABLE",
-                    "message": "The service is temporarily unavailable."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/v1/reverse-geocode": {
-      "get": {
-        "tags": [
-          "Reverse geocoding"
-        ],
-        "summary": "Find the address at a coordinate",
-        "description": "Turns a latitude/longitude into the nearest meaningful location: an address if one is close, otherwise a named place, otherwise the nearest named street (`match_type` tells you which). Returns 404 when nothing is found within 2 km.",
-        "operationId": "reverseGeocode",
-        "security": [
-          {
-            "ApiKey": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "lat",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "maximum": 90,
-              "minimum": -90,
-              "description": "Latitude in decimal degrees (WGS84).",
-              "examples": [
-                47.9184
-              ],
-              "title": "Lat"
-            },
-            "description": "Latitude in decimal degrees (WGS84)."
-          },
-          {
-            "name": "lon",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "number",
-              "maximum": 180,
-              "minimum": -180,
-              "description": "Longitude in decimal degrees (WGS84).",
-              "examples": [
-                106.9177
-              ],
-              "title": "Lon"
-            },
-            "description": "Longitude in decimal degrees (WGS84)."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReverseGeocodeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "400 INVALID_REQUEST",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "INVALID_REQUEST",
-                    "message": "Invalid value for 'lat': must be between -90 and 90.",
-                    "details": {
-                      "field": "lat"
-                    }
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "401 INVALID_API_KEY",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "INVALID_API_KEY",
-                    "message": "The API key is missing or invalid."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "API_KEY_REVOKED",
-                    "message": "This API key has been revoked."
-                  }
-                },
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "404 NOT_FOUND",
-            "content": {
-              "application/json": {
-                "example": {
-                  "error": {
-                    "code": "NOT_FOUND",
-                    "message": "No result was found for this request."
                   }
                 },
                 "schema": {
@@ -682,101 +527,6 @@
   },
   "components": {
     "schemas": {
-      "Address": {
-        "properties": {
-          "formatted": {
-            "type": "string",
-            "title": "Formatted",
-            "examples": [
-              "Sukhbaatar Square, Ulaanbaatar, Mongolia"
-            ]
-          },
-          "name": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Name",
-            "description": "Building, place or street name."
-          },
-          "house_number": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "House Number"
-          },
-          "street": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Street"
-          },
-          "neighborhood": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Neighborhood",
-            "description": "Sub-district, for example a khoroo (хороо)."
-          },
-          "district": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "District"
-          },
-          "city": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "City"
-          },
-          "country": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Country"
-          }
-        },
-        "type": "object",
-        "required": [
-          "formatted"
-        ],
-        "title": "Address"
-      },
       "ErrorDetail": {
         "properties": {
           "code": {
@@ -851,6 +601,7 @@
           "query": {
             "type": "string",
             "title": "Query",
+            "description": "The text searched, or `lat,lon` for a reverse lookup.",
             "examples": [
               "Sukhbaatar Square"
             ]
@@ -927,9 +678,24 @@
           "type": {
             "type": "string",
             "title": "Type",
-            "description": "Place category, for example `landmark` or `district`.",
+            "description": "Place category, or for reverse lookups the match kind (`address`, `place`, `street`).",
             "examples": [
               "place"
+            ]
+          },
+          "distance_meters": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Distance Meters",
+            "description": "Only for reverse lookups: distance in metres from the requested point to this match.",
+            "examples": [
+              12.4
             ]
           }
         },
@@ -1056,43 +822,6 @@
           "checks"
         ],
         "title": "ReadinessResponse"
-      },
-      "ReverseGeocodeResponse": {
-        "properties": {
-          "location": {
-            "$ref": "#/components/schemas/Location",
-            "description": "The coordinates that were requested."
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "match_type": {
-            "type": "string",
-            "enum": [
-              "address",
-              "place",
-              "street"
-            ],
-            "title": "Match Type",
-            "description": "What kind of feature the address was derived from."
-          },
-          "distance_meters": {
-            "type": "number",
-            "title": "Distance Meters",
-            "description": "Distance from the requested point to the match.",
-            "examples": [
-              12.4
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "location",
-          "address",
-          "match_type",
-          "distance_meters"
-        ],
-        "title": "ReverseGeocodeResponse"
       },
       "Route": {
         "properties": {

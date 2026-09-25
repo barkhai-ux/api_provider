@@ -1,9 +1,4 @@
-import type {
-  GeocodeResponse,
-  ReverseGeocodeResponse,
-  RouteResponse,
-  TravelMode,
-} from "@geo-platform/types";
+import type { GeocodeResponse, RouteResponse, TravelMode } from "@geo-platform/types";
 import { GeoApiError, type RateLimitInfo } from "./errors";
 
 export const DEFAULT_BASE_URL = "https://api.YOUR_DOMAIN";
@@ -39,6 +34,9 @@ export interface ReverseGeocodeParams {
   lat: number;
   lon: number;
 }
+
+/** Forward (`q`) or reverse (`lat`+`lon`) geocoding. */
+export type GeocodeQuery = GeocodeParams | ReverseGeocodeParams;
 
 export interface RouteParams {
   origin: LngLat | string;
@@ -86,14 +84,20 @@ export class GeoClient {
     this.headers = options.headers ?? {};
   }
 
-  /** Place name or address to coordinates. */
-  geocode(params: GeocodeParams, options?: RequestOptions): Promise<GeocodeResponse> {
-    return this.get<GeocodeResponse>("/v1/geocode", { q: params.q, limit: params.limit }, options);
+  /**
+   * Forward geocoding (place name or address to coordinates) with `{ q }`, or
+   * reverse geocoding (coordinates to the nearest place) with `{ lat, lon }`.
+   * Both return the same `results` array; reverse results carry `distanceMeters`.
+   */
+  geocode(params: GeocodeQuery, options?: RequestOptions): Promise<GeocodeResponse> {
+    const query: Query =
+      "q" in params ? { q: params.q, limit: params.limit } : { lat: params.lat, lon: params.lon };
+    return this.get<GeocodeResponse>("/v1/geocode", query, options);
   }
 
-  /** Coordinates to the nearest address, place or street. */
-  reverseGeocode(params: ReverseGeocodeParams, options?: RequestOptions): Promise<ReverseGeocodeResponse> {
-    return this.get<ReverseGeocodeResponse>("/v1/reverse-geocode", { lat: params.lat, lon: params.lon }, options);
+  /** Reverse geocoding convenience wrapper: coordinates to the nearest place. */
+  reverseGeocode(params: ReverseGeocodeParams, options?: RequestOptions): Promise<GeocodeResponse> {
+    return this.geocode(params, options);
   }
 
   /** Fastest route between two points for a travel mode (default `driving`). */

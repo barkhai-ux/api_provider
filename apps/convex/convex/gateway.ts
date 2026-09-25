@@ -10,7 +10,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { internalMutation, type MutationCtx } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
-import { API_ENDPOINTS } from "./lib/endpoints";
+import { API_ENDPOINTS, normalizeEndpoints } from "./lib/endpoints";
 import { accountRateLimitPerMinute, requireEnv, routeRateLimitPerMinute } from "./lib/env";
 import { MINUTE_MS, utcDay, windowStart } from "./lib/time";
 
@@ -103,9 +103,12 @@ export const authorize = internalMutation({
 
     const isSiteKey = key.isSiteKey === true && !viaPlayground;
     const principal = { keyId: key._id, userId: key.userId, isSiteKey, viaPlayground };
-    if (key.endpoints !== undefined && !key.endpoints.some((allowed) => allowed === args.endpoint)) {
-      // Not counted against the rate limit; recorded in usage as a 403.
-      return { status: "endpoint_not_allowed" as const, principal, allowedEndpoints: key.endpoints };
+    if (key.endpoints !== undefined) {
+      const allowed = normalizeEndpoints(key.endpoints);
+      if (!allowed.some((endpoint) => endpoint === args.endpoint)) {
+        // Not counted against the rate limit; recorded in usage as a 403.
+        return { status: "endpoint_not_allowed" as const, principal, allowedEndpoints: allowed };
+      }
     }
 
     const defaultLimit = clampLimit(args.defaultLimit, 100);
