@@ -6,6 +6,8 @@ import { GeocodingVisual, ReverseGeocodingVisual, RoutingVisual } from "@/compon
 import { HeroShowcase } from "@/components/developers/hero-showcase";
 import { LiveDemo } from "@/components/developers/live-demo";
 import { CodeTabs } from "@/components/docs/code-block";
+import { Reveal } from "@/components/motion/reveal";
+import { ScrollTilt } from "@/components/motion/scroll-tilt";
 import { Button } from "@/components/ui/button";
 import { getT } from "@/lib/i18n/server";
 import { publicConfig } from "@/lib/config";
@@ -71,6 +73,16 @@ const PLATFORM = [
   { icon: ShieldCheck, title: "Predictable errors", body: "One error envelope with stable codes and rate-limit headers." },
 ] as const;
 
+/** Street grid plus a slowly drifting glow: the backdrop of hero and closing sections. */
+function Backdrop({ glowClassName }: { glowClassName: string }) {
+  return (
+    <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+      <div className="bg-street-grid absolute inset-0" />
+      <div className={cn("absolute animate-drift rounded-full blur-3xl will-change-transform", glowClassName)} />
+    </div>
+  );
+}
+
 function Eyebrow({ children }: { children: ReactNode }) {
   return <p className="text-xs font-bold tracking-[0.16em] text-primary uppercase">{children}</p>;
 }
@@ -101,15 +113,17 @@ function Feature({
 }) {
   return (
     <div className="grid items-center gap-10 py-16 lg:grid-cols-2 lg:gap-20 lg:py-24">
-      <div className={cn("max-w-xl", reverse && "lg:order-2")}>
+      <Reveal className={cn("max-w-xl", reverse && "lg:order-2")}>
         <Eyebrow>{eyebrow}</Eyebrow>
         <h3 className="mt-4 text-3xl leading-[1.1] font-bold text-foreground sm:text-[44px]">{title}</h3>
         <p className="mt-5 text-lg leading-relaxed text-muted-foreground">{body}</p>
         <div className="mt-7">
           <TextLink href={link.href}>{link.label}</TextLink>
         </div>
-      </div>
-      <div className={cn(reverse && "lg:order-1")}>{visual}</div>
+      </Reveal>
+      <Reveal delay={0.1} className={cn(reverse && "lg:order-1")}>
+        {visual}
+      </Reveal>
     </div>
   );
 }
@@ -127,28 +141,33 @@ export default async function DevelopersPage() {
       </Link>
 
       {/* Hero */}
-      <section className="mx-auto max-w-[1400px] px-4 pt-20 pb-16 sm:px-6 lg:px-8 lg:pt-28">
-        <div className="mx-auto flex max-w-4xl flex-col items-center text-center">
-          <span className="rounded-sm bg-primary px-2 py-1 text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase">
-            {t("developers.hero.badge")}
-          </span>
-          <h1 className="mt-6 text-[44px] leading-[1.04] font-bold text-foreground sm:text-6xl lg:text-[72px]">
-            {t("developers.hero.title")}
-          </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
-            {t("developers.hero.subtitle")}
-          </p>
-          <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <Button asChild size="xl">
-              <Link href="/register">{t("developers.hero.getStarted")}</Link>
-            </Button>
-            <Button asChild size="xl" variant="contrast">
-              <Link href="/developers/docs">{t("developers.hero.readDocs")}</Link>
-            </Button>
+      <section className="relative">
+        <Backdrop glowClassName="top-[-12%] left-1/2 -ml-[350px] h-[480px] w-[700px] bg-[oklch(0.5_0.2_265/0.28)]" />
+        <div className="relative mx-auto max-w-[1400px] px-4 pt-20 pb-16 sm:px-6 lg:px-8 lg:pt-28">
+          <div className="stagger mx-auto flex max-w-4xl flex-col items-center text-center">
+            <span className="rounded-sm bg-primary px-2 py-1 text-[11px] font-bold tracking-[0.14em] text-primary-foreground uppercase">
+              {t("developers.hero.badge")}
+            </span>
+            <h1 className="mt-6 text-[44px] leading-[1.04] font-bold text-foreground sm:text-6xl lg:text-[72px]">
+              {t("developers.hero.title")}
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground sm:text-xl">
+              {t("developers.hero.subtitle")}
+            </p>
+            <div className="mt-10 flex flex-wrap justify-center gap-4">
+              <Button asChild size="xl" className="shadow-[0_8px_32px_-8px_var(--glow)]">
+                <Link href="/register">{t("developers.hero.getStarted")}</Link>
+              </Button>
+              <Button asChild size="xl" variant="contrast">
+                <Link href="/developers/docs">{t("developers.hero.readDocs")}</Link>
+              </Button>
+            </div>
           </div>
-        </div>
-        <div className="mt-20">
-          <HeroShowcase />
+          <div className="mt-20 animate-[fade-up_900ms_var(--ease-out)_320ms_both]">
+            <ScrollTilt>
+              <HeroShowcase />
+            </ScrollTilt>
+          </div>
         </div>
       </section>
 
@@ -170,14 +189,14 @@ export default async function DevelopersPage() {
 
       {/* Features */}
       <section aria-labelledby="features-heading" className="mx-auto max-w-[1400px] px-4 pt-24 sm:px-6 lg:px-8">
-        <div className="max-w-3xl">
+        <Reveal className="max-w-3xl">
           <h2 id="features-heading" className="text-4xl leading-[1.08] font-bold sm:text-[52px]">
             Everything location, behind one API
           </h2>
           <p className="mt-5 text-lg text-muted-foreground">
             The same endpoints power the map on this site. What you see is what your application gets.
           </p>
-        </div>
+        </Reveal>
         <div className="divide-y">
           <Feature
             eyebrow="Geocoding"
@@ -207,36 +226,36 @@ export default async function DevelopersPage() {
       {/* Developers */}
       <section aria-labelledby="developers-heading" className="border-t bg-card/40">
         <div className="mx-auto grid max-w-[1400px] gap-12 px-4 py-24 sm:px-6 lg:grid-cols-[5fr_7fr] lg:items-center lg:gap-20 lg:px-8">
-          <div>
+          <Reveal>
             <Eyebrow>For developers</Eyebrow>
             <h2 id="developers-heading" className="mt-4 text-4xl leading-[1.08] font-bold sm:text-[52px]">
               From API key to first request in minutes
             </h2>
             <dl className="mt-10 grid gap-8 sm:grid-cols-2">
-              {PLATFORM.map(({ icon: Icon, title, body }) => (
-                <div key={title}>
+              {PLATFORM.map(({ icon: Icon, title, body }, index) => (
+                <Reveal key={title} delay={0.15 + index * 0.06} offset={12}>
                   <dt className="flex items-center gap-2.5 font-bold text-foreground">
                     <Icon className="size-5 text-primary" aria-hidden="true" />
                     {title}
                   </dt>
                   <dd className="mt-2 text-sm leading-relaxed text-muted-foreground">{body}</dd>
-                </div>
+                </Reveal>
               ))}
             </dl>
             <div className="mt-10">
               <TextLink href="/developers/docs/getting-started">Getting started guide</TextLink>
             </div>
-          </div>
-          <div className="min-w-0">
+          </Reveal>
+          <Reveal delay={0.1} className="min-w-0">
             <CodeTabs examples={EXAMPLES} className="my-0 rounded-2xl bg-code shadow-2xl" />
-          </div>
+          </Reveal>
         </div>
       </section>
 
       {/* Live demo */}
       <section aria-labelledby="demo-heading" className="border-t">
         <div className="mx-auto max-w-[1400px] px-4 py-24 sm:px-6 lg:px-8">
-          <div className="max-w-2xl">
+          <Reveal className="max-w-2xl">
             <Eyebrow>Live</Eyebrow>
             <h2 id="demo-heading" className="mt-4 text-4xl leading-[1.08] font-bold sm:text-[52px]">
               Try every endpoint
@@ -244,10 +263,10 @@ export default async function DevelopersPage() {
             <p className="mt-5 text-lg text-muted-foreground">
               Real requests against the live API, made by this site on your behalf. No key needed here.
             </p>
-          </div>
-          <div className="mt-12 rounded-2xl border bg-card p-4 sm:p-6">
+          </Reveal>
+          <Reveal delay={0.1} className="mt-12 rounded-2xl border bg-card p-4 sm:p-6">
             <LiveDemo />
-          </div>
+          </Reveal>
         </div>
       </section>
 
@@ -257,20 +276,21 @@ export default async function DevelopersPage() {
           aria-hidden="true"
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_80%_at_50%_100%,var(--glow),transparent_70%)]"
         />
-        <div className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-28 text-center">
+        <Backdrop glowClassName="bottom-[-40%] left-1/2 -ml-[300px] h-[420px] w-[600px] bg-[oklch(0.5_0.2_265/0.22)]" />
+        <Reveal className="relative mx-auto flex max-w-3xl flex-col items-center px-4 py-28 text-center">
           <h2 className="text-4xl leading-[1.05] font-bold sm:text-[56px]">{t("developers.cta.title")}</h2>
           <p className="mt-5 text-lg text-muted-foreground">
             {t("developers.cta.subtitle")}
           </p>
           <div className="mt-10 flex flex-wrap justify-center gap-4">
-            <Button asChild size="xl">
+            <Button asChild size="xl" className="shadow-[0_8px_32px_-8px_var(--glow)]">
               <Link href="/register">{t("developers.hero.getStarted")}</Link>
             </Button>
             <Button asChild size="xl" variant="contrast">
               <Link href="/developers/api-reference">{t("developers.cta.apiReference")}</Link>
             </Button>
           </div>
-        </div>
+        </Reveal>
       </section>
     </div>
   );

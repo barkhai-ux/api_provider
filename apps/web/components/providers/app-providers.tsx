@@ -1,6 +1,7 @@
 "use client";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MotionConfig } from "motion/react";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,10 +17,13 @@ export function AppProviders({ children }: { children: ReactNode }) {
   );
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={300}>
-        {children}
-        <Toaster position="bottom-right" />
-      </TooltipProvider>
+      {/* Honour prefers-reduced-motion: Motion drops transform animations, keeps fades. */}
+      <MotionConfig reducedMotion="user">
+        <TooltipProvider delayDuration={300}>
+          {children}
+          <Toaster position="bottom-right" />
+        </TooltipProvider>
+      </MotionConfig>
     </QueryClientProvider>
   );
 }

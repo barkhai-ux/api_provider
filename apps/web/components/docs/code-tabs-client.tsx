@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "motion/react";
 import { useId, useState } from "react";
 import { cn } from "@/lib/utils";
 import { CopyButton } from "./copy-button";
@@ -49,11 +50,19 @@ export function CodeTabsClient({
               onClick={() => setActive(index)}
               onKeyDown={(event) => onKeyDown(event, index)}
               className={cn(
-                "h-10 border-b-2 border-transparent px-4 text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-offset-[-2px]",
-                index === active && "border-primary text-foreground",
+                "relative h-10 px-4 text-xs font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-offset-[-2px]",
+                index === active && "text-foreground",
               )}
             >
               {item.label}
+              {index === active && (
+                <motion.span
+                  layoutId={`${id}-underline`}
+                  className="absolute inset-x-0 bottom-0 h-0.5 bg-primary"
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                  aria-hidden="true"
+                />
+              )}
             </button>
           ))}
         </div>

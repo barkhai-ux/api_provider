@@ -13,7 +13,7 @@ export function AuthCard({
   footer?: ReactNode;
 }) {
   return (
-    <div className="w-full max-w-sm">
+    <div className="stagger stagger-quick w-full max-w-sm [--stagger-step:60ms]">
       <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
       {description && <p className="mt-2 text-muted-foreground">{description}</p>}
       <div className="mt-8">{children}</div>

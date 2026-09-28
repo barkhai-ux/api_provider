@@ -157,7 +157,9 @@ export function SearchBox({
       <div
         className={cn(
           "overflow-hidden rounded-lg border bg-popover text-popover-foreground",
-          inlineResults ? "mt-2" : "absolute top-full right-0 left-0 z-30 mt-1 shadow-lg",
+          inlineResults
+            ? "mt-2"
+            : "absolute top-full right-0 left-0 z-30 mt-1 origin-top shadow-lg transition-[opacity,transform] duration-150 ease-out starting:-translate-y-1 starting:scale-[0.98] starting:opacity-0",
           !showList && "hidden",
         )}
       >

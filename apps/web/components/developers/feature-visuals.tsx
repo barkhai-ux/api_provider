@@ -1,12 +1,28 @@
+"use client";
+
 import { Car, Footprints, MapPin, Search } from "lucide-react";
-import type { ReactNode } from "react";
+import { motion, useInView, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import { EASE_OUT } from "@/components/motion/reveal";
 import { cn } from "@/lib/utils";
 
 /**
  * Illustrations for the developer landing page: product UI cards over a
  * stylized street canvas. Place names are real results from the platform's
  * geocoder; the street canvas is decorative.
+ *
+ * Each visual plays its story once when scrolled into view (a query being
+ * typed, a pin dropping, a route drawing), then rests on the final frame.
  */
+
+/** Ease-in-out for on-screen movement (see --ease-in-out in globals.css). */
+const EASE_IN_OUT = [0.77, 0, 0.175, 1] as const;
+
+function useOnceInView<T extends Element>() {
+  const ref = useRef<T>(null);
+  const inView = useInView(ref, { once: true, margin: "0px 0px -15% 0px" });
+  return [ref, inView] as const;
+}
 
 const MINOR_STREETS = [
   "M0 70 L640 40",
@@ -22,9 +38,18 @@ const MINOR_STREETS = [
 ];
 const MAJOR_ROADS = ["M0 225 L640 196", "M235 0 L250 460", "M0 460 L420 0"];
 
-function MapCanvas({ children, className }: { children?: ReactNode; className?: string }) {
+function MapCanvas({
+  children,
+  className,
+  ref,
+}: {
+  children?: ReactNode;
+  className?: string;
+  ref?: Ref<HTMLDivElement>;
+}) {
   return (
     <div
+      ref={ref}
       className={cn(
         "relative aspect-[640/460] w-full overflow-hidden rounded-2xl border bg-[oklch(0.19_0.008_260)]",
         className,
@@ -46,11 +71,26 @@ function MapCanvas({ children, className }: { children?: ReactNode; className?: 
   );
 }
 
-function Pin({ x, y, active = false }: { x: number; y: number; active?: boolean }) {
+function Pin({
+  x,
+  y,
+  active = false,
+  show = true,
+  delay = 0,
+}: {
+  x: number;
+  y: number;
+  active?: boolean;
+  show?: boolean;
+  delay?: number;
+}) {
   return (
-    <span
+    <motion.span
       className="absolute -translate-x-1/2 -translate-y-full"
-      style={{ left: `${(x / 640) * 100}%`, top: `${(y / 460) * 100}%` }}
+      style={{ left: `${(x / 640) * 100}%`, top: `${(y / 460) * 100}%`, transformOrigin: "50% 100%" }}
+      initial={false}
+      animate={show ? { opacity: 1, y: 0, scale: 1 } : { opacity: 0, y: -14, scale: 0.9 }}
+      transition={{ type: "spring", duration: 0.5, bounce: 0.3, delay }}
       aria-hidden="true"
     >
       <svg viewBox="0 0 28 36" className={cn("drop-shadow-lg", active ? "h-9 w-7" : "h-7 w-5 opacity-80")}>
@@ -62,7 +102,7 @@ function Pin({ x, y, active = false }: { x: number; y: number; active?: boolean 
         />
         <circle cx="14" cy="13.5" r="4.5" fill="#fff" />
       </svg>
-    </span>
+    </motion.span>
   );
 }
 
@@ -72,27 +112,55 @@ const RESULTS = [
   { name: "Сүхбаатар дүүргийн нийгмийн даатгал", address: "6-р хороо, Чингэлтэй", x: 262, y: 176 },
 ];
 
+const QUERY = "sukh";
+
+/** Types QUERY one character at a time once `start` turns true. */
+function useTypedText(start: boolean) {
+  const reduced = useReducedMotion();
+  const [length, setLength] = useState(0);
+  useEffect(() => {
+    if (!start || reduced) return;
+    const timer = setInterval(() => {
+      setLength((value) => {
+        if (value + 1 >= QUERY.length) clearInterval(timer);
+        return Math.min(value + 1, QUERY.length);
+      });
+    }, 140);
+    return () => clearInterval(timer);
+  }, [start, reduced]);
+  return reduced ? QUERY : QUERY.slice(0, length);
+}
+
 export function GeocodingVisual() {
+  const [ref, inView] = useOnceInView<HTMLDivElement>();
+  const typed = useTypedText(inView);
+  const done = typed.length === QUERY.length;
   return (
-    <MapCanvas>
+    <MapCanvas ref={ref}>
       {RESULTS.map((r, i) => (
-        <Pin key={r.name} x={r.x} y={r.y} active={i === 0} />
+        <Pin key={r.name} x={r.x} y={r.y} active={i === 0} show={done} delay={0.15 + i * 0.08} />
       ))}
       <div className="absolute top-[6%] left-[5%] w-[62%] min-w-56 rounded-2xl border bg-background/95 p-3 shadow-2xl backdrop-blur">
         <div className="flex items-center gap-2 rounded-xl border bg-secondary px-3 py-2 text-sm text-foreground">
           <Search className="size-4 text-muted-foreground" aria-hidden="true" />
-          sukh
-          <span className="ml-0.5 h-4 w-px animate-pulse bg-primary" aria-hidden="true" />
+          {typed}
+          <span className="-ml-1.5 h-4 w-px animate-pulse bg-primary" aria-hidden="true" />
         </div>
         <ul className="mt-2 flex flex-col">
           {RESULTS.map((r, i) => (
-            <li key={r.name} className={cn("flex items-start gap-2.5 rounded-lg px-2 py-1.5", i === 0 && "bg-accent")}>
+            <motion.li
+              key={r.name}
+              initial={false}
+              animate={done ? { opacity: 1, transform: "translateY(0px)" } : { opacity: 0, transform: "translateY(6px)" }}
+              transition={{ duration: 0.35, ease: EASE_OUT, delay: i * 0.06 }}
+              className={cn("flex items-start gap-2.5 rounded-lg px-2 py-1.5", i === 0 && "bg-accent")}
+            >
               <MapPin className="mt-0.5 size-3.5 shrink-0 text-primary" aria-hidden="true" />
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-semibold text-foreground">{r.name}</span>
                 <span className="block truncate text-[11px] text-muted-foreground">{r.address}</span>
               </span>
-            </li>
+            </motion.li>
           ))}
         </ul>
       </div>
@@ -101,15 +169,31 @@ export function GeocodingVisual() {
 }
 
 export function ReverseGeocodingVisual() {
+  const [ref, inView] = useOnceInView<HTMLDivElement>();
   return (
-    <MapCanvas>
+    <MapCanvas ref={ref}>
+      {/* Search radius: a soft sonar ring around the tapped point. */}
       <span
         className="absolute size-24 -translate-x-1/2 -translate-y-1/2 rounded-full border border-primary/50 bg-primary/10"
         style={{ left: "50%", top: "46%" }}
         aria-hidden="true"
       />
-      <Pin x={320} y={212} active />
-      <div className="absolute right-[5%] bottom-[7%] left-[5%] rounded-2xl border bg-background/95 p-4 shadow-2xl backdrop-blur sm:left-auto sm:w-[70%]">
+      {inView && (
+        <span
+          className="absolute size-24 -translate-x-1/2 -translate-y-1/2"
+          style={{ left: "50%", top: "46%" }}
+          aria-hidden="true"
+        >
+          <span className="absolute inset-0 animate-[sonar_2.4s_var(--ease-out)_infinite] rounded-full border-2 border-primary/60" />
+        </span>
+      )}
+      <Pin x={320} y={212} active show={inView} />
+      <motion.div
+        initial={false}
+        animate={inView ? { opacity: 1, transform: "translateY(0px)" } : { opacity: 0, transform: "translateY(16px)" }}
+        transition={{ duration: 0.6, ease: EASE_OUT, delay: 0.35 }}
+        className="absolute right-[5%] bottom-[7%] left-[5%] rounded-2xl border bg-background/95 p-4 shadow-2xl backdrop-blur sm:left-auto sm:w-[70%]"
+      >
         <div className="flex items-center justify-between gap-2">
           <span className="rounded-md bg-primary/15 px-2 py-0.5 text-[11px] font-bold tracking-wider text-primary uppercase">
             place
@@ -118,35 +202,59 @@ export function ReverseGeocodingVisual() {
         </div>
         <p className="mt-2.5 text-base font-bold text-foreground">Сүхбаатарын талбай</p>
         <p className="text-sm text-muted-foreground">6-р хороо, Сүхбаатар, Mongolia</p>
-      </div>
+      </motion.div>
     </MapCanvas>
   );
 }
 
+const ROUTE_PATH = "M118 360 L108 250 L243 232 L239 128 L430 102 L436 70";
+
 export function RoutingVisual() {
+  const [ref, inView] = useOnceInView<HTMLDivElement>();
+  const draw = { duration: 1.4, ease: EASE_IN_OUT, delay: 0.2 };
   return (
-    <MapCanvas>
+    <MapCanvas ref={ref}>
       <svg viewBox="0 0 640 460" className="absolute inset-0 size-full" aria-hidden="true" preserveAspectRatio="xMidYMid slice">
-        <path
-          d="M118 360 L108 250 L243 232 L239 128 L430 102 L436 70"
+        <motion.path
+          d={ROUTE_PATH}
           stroke="#2f6bff"
           strokeOpacity="0.35"
           strokeWidth="16"
           fill="none"
           strokeLinejoin="round"
+          initial={false}
+          animate={{ pathLength: inView ? 1 : 0 }}
+          transition={draw}
         />
-        <path
-          d="M118 360 L108 250 L243 232 L239 128 L430 102 L436 70"
+        <motion.path
+          d={ROUTE_PATH}
           stroke="#2f6bff"
           strokeWidth="6"
           fill="none"
           strokeLinejoin="round"
           strokeLinecap="round"
+          initial={false}
+          animate={{ pathLength: inView ? 1 : 0 }}
+          transition={draw}
         />
         <circle cx="118" cy="360" r="9" fill="#fff" stroke="#2f6bff" strokeWidth="4" />
+        {/* A vehicle travelling the finished route. */}
+        {inView && (
+          <circle
+            r="5"
+            fill="#fff"
+            className="animate-[route-travel_5s_linear_1.8s_infinite_both] drop-shadow-[0_0_6px_#2f6bff]"
+            style={{ offsetPath: `path("${ROUTE_PATH}")`, offsetRotate: "0deg" }}
+          />
+        )}
       </svg>
-      <Pin x={436} y={72} active />
-      <div className="absolute top-[6%] right-[5%] w-[52%] min-w-52 rounded-2xl border bg-background/95 p-3.5 shadow-2xl backdrop-blur">
+      <Pin x={436} y={72} active show={inView} delay={1.45} />
+      <motion.div
+        initial={false}
+        animate={inView ? { opacity: 1, transform: "translateY(0px)" } : { opacity: 0, transform: "translateY(-10px)" }}
+        transition={{ duration: 0.6, ease: EASE_OUT, delay: 1.5 }}
+        className="absolute top-[6%] right-[5%] w-[52%] min-w-52 rounded-2xl border bg-background/95 p-3.5 shadow-2xl backdrop-blur"
+      >
         <div className="grid grid-cols-2 gap-1 rounded-lg bg-secondary p-1 text-xs font-semibold">
           <span className="flex items-center justify-center gap-1.5 rounded-md bg-background py-1.5 text-foreground">
             <Car className="size-3.5" aria-hidden="true" /> Driving
@@ -160,7 +268,7 @@ export function RoutingVisual() {
           <span className="text-sm text-muted-foreground">4.2 km</span>
         </div>
         <p className="mt-1 text-xs text-muted-foreground">Fastest route for the selected travel mode</p>
-      </div>
+      </motion.div>
     </MapCanvas>
   );
 }

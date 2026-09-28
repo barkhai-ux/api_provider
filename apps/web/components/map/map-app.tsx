@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, Navigation, Search, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SegmentThumb } from "@/components/motion/segment-thumb";
 import { Button } from "@/components/ui/button";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
@@ -348,7 +349,7 @@ export function MapApp() {
         (directionsOpen ? (
           <section
             aria-labelledby="directions-heading"
-            className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-[380px] overflow-y-auto max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-background/95 p-5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.7)] backdrop-blur"
+            className="absolute top-3 right-3 z-10 max-h-[calc(100%-1.5rem)] w-[380px] origin-top-right animate-pop-in overflow-y-auto max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-background/95 p-5 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.7)] backdrop-blur"
           >
             <div className="mb-3 flex items-center justify-between">
               <h2 id="directions-heading" className="text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">
@@ -361,7 +362,7 @@ export function MapApp() {
             {routePanel}
           </section>
         ) : (
-          <Button size="pill" className="absolute top-3 right-3 z-10 h-10 px-5 shadow-lg" onClick={openDirections}>
+          <Button size="pill" className="absolute top-3 right-3 z-10 h-10 origin-top-right animate-pop-in px-5 shadow-lg" onClick={openDirections}>
             <Navigation /> {t("map.directions")}
           </Button>
         ))}
@@ -372,7 +373,7 @@ export function MapApp() {
           ref={sheetRef}
           aria-label={t("map.searchAndDirections")}
           className={cn(
-            "absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl border-t bg-background shadow-[0_-4px_16px_rgb(0_0_0/0.08)]",
+            "absolute inset-x-0 bottom-0 z-10 flex flex-col rounded-t-2xl border-t bg-background shadow-[0_-4px_16px_rgb(0_0_0/0.08)] animate-[fade-up_300ms_var(--ease-drawer)_both]",
             sheetExpanded ? "max-h-[75dvh]" : "max-h-[45dvh]",
           )}
         >
@@ -399,12 +400,13 @@ export function MapApp() {
                     if (tab === "directions") setDirectionsOpen(true);
                   }}
                   className={cn(
-                    "flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm text-muted-foreground",
-                    mobileTab === tab && "bg-background font-medium text-foreground shadow-xs",
+                    "relative flex items-center justify-center gap-1.5 rounded-md py-1.5 text-sm text-muted-foreground transition-colors",
+                    mobileTab === tab && "font-medium text-foreground",
                   )}
                 >
-                  {tab === "search" ? <Search className="size-4" /> : <Navigation className="size-4" />}
-                  {tab === "search" ? t("map.search") : t("map.directions")}
+                  {mobileTab === tab && <SegmentThumb layoutId="map-mobile-tab" />}
+                  {tab === "search" ? <Search className="relative size-4" /> : <Navigation className="relative size-4" />}
+                  <span className="relative">{tab === "search" ? t("map.search") : t("map.directions")}</span>
                 </button>
               ))}
             </div>

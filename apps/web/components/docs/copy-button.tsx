@@ -25,7 +25,21 @@ export function CopyButton({ text, label = "Copy code", className }: { text: str
       aria-label={copied ? "Copied" : label}
       className={cn("text-muted-foreground", className)}
     >
-      {copied ? <Check /> : <Copy />}
+      {/* Both icons stay mounted and cross-fade; blur hides the swap. */}
+      <span className="relative size-4">
+        <Copy
+          className={cn(
+            "absolute inset-0 transition-[opacity,scale,filter] duration-200 ease-out",
+            copied && "scale-50 opacity-0 blur-[2px]",
+          )}
+        />
+        <Check
+          className={cn(
+            "absolute inset-0 text-success transition-[opacity,scale,filter] duration-200 ease-out",
+            !copied && "scale-50 opacity-0 blur-[2px]",
+          )}
+        />
+      </span>
     </Button>
   );
 }

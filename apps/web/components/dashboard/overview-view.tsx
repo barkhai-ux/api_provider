@@ -45,7 +45,7 @@ export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
         }
       />
 
-      <section aria-label="Usage summary" className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
+      <section aria-label="Usage summary" className="stagger stagger-quick grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-3">
         <StatCard label={t("dashboard.home.requestsToday")} icon={Activity} loading={loading} value={formatStat(summary?.today.total ?? 0)} />
         <StatCard
           label={t("dashboard.home.requestsMonth")}

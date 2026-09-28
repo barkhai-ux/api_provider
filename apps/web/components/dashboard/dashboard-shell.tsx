@@ -5,9 +5,10 @@ import { api } from "@geo-platform/convex/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery } from "convex/react";
 import { BookOpen, ChevronDown, LogOut, Menu, Settings } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { Logo } from "@/components/site/logo";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -44,12 +45,21 @@ function NavList({ items, pathname, onNavigate }: { items: ConsoleNavItem[]; pat
               onClick={onNavigate}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium text-foreground/70 transition-colors hover:bg-background/70 hover:text-foreground",
-                active && "bg-background font-semibold text-primary shadow-[0_1px_3px_rgb(15_23_42/0.06)]",
+                "relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium text-foreground/70 transition-colors hover:bg-background/70 hover:text-foreground",
+                active && "font-semibold text-primary hover:bg-transparent hover:text-primary",
               )}
             >
-              <Icon className="size-[18px]" aria-hidden="true" />
-              {t(item.labelKey)}
+              {active && (
+                // One pill per nav (namespaced by LayoutGroup) that slides to the active item.
+                <motion.span
+                  layoutId="console-nav-active"
+                  className="absolute inset-0 rounded-xl bg-background shadow-[0_1px_3px_rgb(15_23_42/0.06)]"
+                  transition={{ type: "spring", duration: 0.3, bounce: 0 }}
+                  aria-hidden="true"
+                />
+              )}
+              <Icon className="relative size-[18px]" aria-hidden="true" />
+              <span className="relative">{t(item.labelKey)}</span>
             </Link>
           </li>
         );
@@ -60,14 +70,19 @@ function NavList({ items, pathname, onNavigate }: { items: ConsoleNavItem[]; pat
 
 function SidebarNav({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
   const t = useT();
+  // The desktop sidebar and the mobile sheet can both be mounted; a group id per
+  // instance keeps their active pills from animating into each other.
+  const group = useId();
   return (
-    <nav aria-label="Developer console" className="flex flex-col gap-8">
-      <NavList items={CONSOLE_NAV} pathname={pathname} onNavigate={onNavigate} />
-      <div>
-        <p className="px-3 pb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">{t("dashboard.nav.settings")}</p>
-        <NavList items={SETTINGS_NAV} pathname={pathname} onNavigate={onNavigate} />
-      </div>
-    </nav>
+    <LayoutGroup id={group}>
+      <nav aria-label="Developer console" className="flex flex-col gap-8">
+        <NavList items={CONSOLE_NAV} pathname={pathname} onNavigate={onNavigate} />
+        <div>
+          <p className="px-3 pb-2 text-[11px] font-bold tracking-[0.14em] text-muted-foreground uppercase">{t("dashboard.nav.settings")}</p>
+          <NavList items={SETTINGS_NAV} pathname={pathname} onNavigate={onNavigate} />
+        </div>
+      </nav>
+    </LayoutGroup>
   );
 }
 
@@ -91,7 +106,7 @@ function UserMenu() {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          className="flex items-center gap-2 rounded-full bg-background py-1 pr-3 pl-1 text-sm font-semibold shadow-[0_1px_3px_rgb(15_23_42/0.08)] transition-colors hover:bg-background/80"
+          className="flex items-center gap-2 rounded-full bg-background py-1 pr-3 pl-1 text-sm font-semibold shadow-[0_1px_3px_rgb(15_23_42/0.08)] transition-[background-color,box-shadow,transform] duration-150 ease-out hover:shadow-[0_2px_8px_rgb(15_23_42/0.1)] active:scale-[0.97] aria-expanded:shadow-[0_2px_8px_rgb(15_23_42/0.1)]"
           aria-label={t("authNav.accountMenu")}
         >
           <Avatar className="size-7">
@@ -138,7 +153,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     <div className="console-shell flex min-h-dvh flex-1 bg-canvas">
       <aside className="hidden w-64 shrink-0 lg:block">
         <div className="sticky top-0 flex h-dvh flex-col gap-10 px-5 py-7">
-          <Logo className="px-3" />
+          <Logo stacked className="px-3" />
           <SidebarNav pathname={pathname} />
         </div>
       </aside>
@@ -167,7 +182,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
               <SheetContent side="left" className="w-72 bg-canvas">
                 <SheetHeader>
                   <SheetTitle>
-                    <Logo />
+                    <Logo stacked />
                   </SheetTitle>
                 </SheetHeader>
                 <div className="px-3">

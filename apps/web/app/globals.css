@@ -53,6 +53,52 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* Motion tokens. Overriding Tailwind's --ease-* makes every `ease-out` /
+   `ease-in-out` utility use these stronger curves; `ease-drawer` is the
+   iOS-style sheet curve. */
+@theme static {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --animate-rise: rise 700ms var(--ease-out) both;
+  --animate-fade-up: fade-up 300ms var(--ease-out) both;
+  --animate-pop-in: pop-in 200ms var(--ease-out) both;
+  --animate-drift: drift 18s var(--ease-in-out) infinite alternate;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+@keyframes drift {
+  from {
+    transform: translate3d(-6%, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(6%, -4%, 0) scale(1.08);
+  }
+}
+
 :root {
   /* Light surfaces (docs, dashboard, auth). One saturated blue accent. */
   --background: oklch(1 0 0);
@@ -184,6 +230,17 @@
   box-shadow: 0 8px 24px rgb(15 23 42 / 0.12);
   font-family: var(--font-manrope), system-ui, sans-serif;
 }
+/* A new popup scales in from its tip; content updates on the same spot don't replay it. */
+.geo-map .geo-popup-enter .maplibregl-popup-content {
+  animation: var(--animate-pop-in);
+  transform-origin: 50% 100%;
+}
+.geo-map .geo-popup-enter.maplibregl-popup-anchor-top .maplibregl-popup-content {
+  transform-origin: 50% 0;
+}
+.geo-map .geo-popup-enter .maplibregl-popup-tip {
+  animation: fade-in 200ms var(--ease-out) both;
+}
 .geo-map .maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
   border-top-color: var(--popover);
 }
@@ -229,8 +286,14 @@
   color: var(--foreground);
   cursor: pointer;
 }
+.geo-popup-actions button {
+  transition: background-color 150ms ease, transform 150ms var(--ease-out);
+}
 .geo-popup-actions button:hover {
   background: var(--muted);
+}
+.geo-popup-actions button:active {
+  transform: scale(0.97);
 }
 .geo-popup-actions button:focus-visible,
 .maplibregl-ctrl button:focus-visible {
@@ -285,4 +348,55 @@
 .console-shell [data-slot="table-head"] {
   color: var(--muted-foreground);
   font-size: 0.75rem;
+}
+
+/* Staggered entrance: children animate in document order. */
+.stagger > * {
+  animation: var(--stagger-animation, var(--animate-rise));
+  animation-delay: calc(var(--i, 0) * var(--stagger-step, 70ms) + var(--stagger-base, 0ms));
+}
+.stagger > :nth-child(2) { --i: 1; }
+.stagger > :nth-child(3) { --i: 2; }
+.stagger > :nth-child(4) { --i: 3; }
+.stagger > :nth-child(5) { --i: 4; }
+.stagger > :nth-child(6) { --i: 5; }
+.stagger > :nth-child(n + 7) { --i: 6; }
+/* Crisp variant for the console: short lift, no blur, 40ms apart. */
+.stagger-quick {
+  --stagger-animation: var(--animate-fade-up);
+  --stagger-step: 40ms;
+}
+
+/* Faint street-grid texture for dark marketing surfaces, faded at the edges. */
+.bg-street-grid {
+  background-image:
+    linear-gradient(to right, oklch(1 0 0 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, oklch(1 0 0 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 20%, transparent 75%);
+}
+
+/* Landing-page illustrations (components/developers/feature-visuals.tsx). */
+@keyframes sonar {
+  from {
+    opacity: 0.8;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.9);
+  }
+}
+@keyframes bar-grow {
+  from {
+    transform: scaleY(0);
+  }
+}
+@keyframes route-travel {
+  from {
+    offset-distance: 0%;
+  }
+  to {
+    offset-distance: 100%;
+  }
 }

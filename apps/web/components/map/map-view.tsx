@@ -129,6 +129,7 @@ export default function MapView(props: MapViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const markersRef = useRef(new Map<string, Marker>());
   const popupRef = useRef<Popup | null>(null);
+  const popupLngLat = useRef<LngLatTuple | null>(null);
   // The map exists once its style is resolved; `ready` once the style loaded.
   const [map, setMap] = useState<MapLibreMap | null>(null);
   const [ready, setReady] = useState(false);
@@ -283,8 +284,20 @@ export default function MapView(props: MapViewProps) {
     const previous = popupRef.current;
     popupRef.current = null;
     previous?.remove();
+    const previousLngLat = popupLngLat.current;
+    popupLngLat.current = props.popup?.lngLat ?? null;
     if (!props.popup) return;
-    const popup = new Popup({ offset: 30, closeButton: true, closeOnClick: false, maxWidth: "280px" })
+    // Scale in only when the popup opens at a new spot; a content update in
+    // place (e.g. "Looking up…" becoming the address) swaps without replaying.
+    const [lng, lat] = props.popup.lngLat;
+    const isNew = !previousLngLat || previousLngLat[0] !== lng || previousLngLat[1] !== lat;
+    const popup = new Popup({
+      offset: 30,
+      closeButton: true,
+      closeOnClick: false,
+      maxWidth: "280px",
+      className: isNew ? "geo-popup-enter" : undefined,
+    })
       .setLngLat(props.popup.lngLat)
       .setDOMContent(popupContent(props.popup))
       .addTo(map);

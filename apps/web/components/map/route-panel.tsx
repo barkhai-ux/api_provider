@@ -2,6 +2,8 @@
 
 import type { RouteResponse, TravelMode } from "@geo-platform/api-client";
 import { ArrowDownUp, Car, Circle, Footprints, LocateFixed, Loader2, MapPin, X } from "lucide-react";
+import { useId, useState } from "react";
+import { SegmentThumb } from "@/components/motion/segment-thumb";
 import { Button } from "@/components/ui/button";
 import { formatDistance, formatDuration } from "@/lib/format";
 import { useT } from "@/lib/i18n/provider";
@@ -40,6 +42,9 @@ export function RoutePanel(props: RoutePanelProps) {
   const { from, to, mode, result, error, calculating } = props;
   const t = useT();
   const canCalculate = from.lngLat !== null && to.lngLat !== null && !calculating;
+  const id = useId();
+  // Half-turns of the swap icon: it flips on every press as feedback.
+  const [swaps, setSwaps] = useState(0);
 
   return (
     <form
@@ -75,8 +80,17 @@ export function RoutePanel(props: RoutePanelProps) {
           />
         </div>
         <div className="flex flex-col justify-end gap-2 pb-0.5">
-          <Button type="button" variant="ghost" size="icon" onClick={props.onSwap} aria-label={t("map.swap")}>
-            <ArrowDownUp />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              setSwaps((value) => value + 1);
+              props.onSwap();
+            }}
+            aria-label={t("map.swap")}
+          >
+            <ArrowDownUp className="transition-transform duration-300 ease-in-out" style={{ rotate: `${swaps * 180}deg` }} />
           </Button>
         </div>
       </div>
@@ -100,10 +114,11 @@ export function RoutePanel(props: RoutePanelProps) {
             <label
               key={value}
               className={cn(
-                "flex cursor-pointer items-center justify-center gap-1.5 rounded-md py-1.5 text-sm text-muted-foreground transition-colors has-focus-visible:outline-2 has-focus-visible:outline-ring",
-                mode === value && "bg-background font-medium text-foreground shadow-xs",
+                "relative flex cursor-pointer items-center justify-center gap-1.5 rounded-md py-1.5 text-sm text-muted-foreground transition-colors has-focus-visible:outline-2 has-focus-visible:outline-ring",
+                mode === value && "font-medium text-foreground",
               )}
             >
+              {mode === value && <SegmentThumb layoutId={`${id}-mode`} />}
               <input
                 type="radio"
                 name="travel-mode"
@@ -112,8 +127,8 @@ export function RoutePanel(props: RoutePanelProps) {
                 onChange={() => props.onModeChange(value)}
                 className="sr-only"
               />
-              <Icon className="size-4" aria-hidden="true" />
-              {t(labelKey)}
+              <Icon className="relative size-4" aria-hidden="true" />
+              <span className="relative">{t(labelKey)}</span>
             </label>
           ))}
         </div>
@@ -133,12 +148,12 @@ export function RoutePanel(props: RoutePanelProps) {
 
       <div aria-live="polite">
         {error && (
-          <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p role="alert" className="animate-fade-up rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
             {error}
           </p>
         )}
         {result && !error && (
-          <div className="rounded-lg border bg-muted/40 p-3">
+          <div key={`${result.mode}-${result.route.distance_meters}`} className="animate-fade-up rounded-lg border bg-muted/40 p-3">
             <div className="flex items-baseline gap-3">
               <span className="text-2xl font-semibold tabular-nums">{formatDuration(result.route.duration_seconds)}</span>
               <span className="text-sm text-muted-foreground tabular-nums">
