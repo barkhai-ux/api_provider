@@ -213,7 +213,6 @@
     "title": "A plan for every scale",
     "subtitle": "Start free, then grow without changing your integration. Every plan includes the same stable API and clear monthly limits.",
     "plansHeading": "Monthly plans",
-    "mostPopular": "Most popular",
     "perMonth": "/ month",
     "custom": "Let’s talk",
     "requests": "{count} requests / month",
@@ -226,22 +225,18 @@
     "plans": {
       "starter": {
         "name": "Starter",
-        "banner": "Build and explore",
         "description": "For prototypes, personal projects and your first production integration."
       },
       "essentials": {
         "name": "Essentials",
-        "banner": "Save as you grow",
         "description": "For production apps that need dependable capacity and support."
       },
       "pro": {
         "name": "Pro",
-        "banner": "Built for scale",
         "description": "For high-volume location products and operational workloads."
       },
       "enterprise": {
         "name": "Enterprise",
-        "banner": "Designed around you",
         "description": "For organizations that need dedicated capacity and tailored terms."
       }
     },

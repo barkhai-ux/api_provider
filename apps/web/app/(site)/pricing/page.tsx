@@ -4,7 +4,6 @@ import Link from "next/link";
 import { Reveal } from "@/components/motion/reveal";
 import { Button } from "@/components/ui/button";
 import { getT } from "@/lib/i18n/server";
-import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -17,7 +16,6 @@ const PLANS = [
     price: "$50",
     requests: "10,000",
     rate: "100",
-    popular: false,
     features: ["geocoding", "reverseGeocoding", "routing", "communitySupport"],
   },
   {
@@ -25,7 +23,6 @@ const PLANS = [
     price: "$137.50",
     requests: "100,000",
     rate: "500",
-    popular: true,
     features: ["everythingStarter", "higherLimits", "usageAnalytics", "emailSupport"],
   },
   {
@@ -33,7 +30,6 @@ const PLANS = [
     price: "$600",
     requests: "500,000",
     rate: "2,000",
-    popular: false,
     features: ["everythingEssentials", "priorityRouting", "multipleProjects", "prioritySupport"],
   },
   {
@@ -41,7 +37,6 @@ const PLANS = [
     price: null,
     requests: null,
     rate: null,
-    popular: false,
     features: ["customVolume", "dedicatedCapacity", "serviceAgreement", "technicalContact"],
   },
 ] as const;
@@ -80,21 +75,7 @@ export default async function PricingPage() {
         <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan, index) => (
             <Reveal key={plan.id} delay={index * 0.06} className="h-full">
-              <article
-                className={cn(
-                  "relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card",
-                  plan.popular && "border-primary shadow-[0_18px_70px_-28px_var(--glow)] xl:-translate-y-3",
-                )}
-              >
-                <div
-                  className={cn(
-                    "flex min-h-11 items-center justify-center border-b px-5 py-3 text-center text-sm font-bold",
-                    plan.popular ? "border-primary bg-primary text-primary-foreground" : "bg-secondary/45 text-foreground",
-                  )}
-                >
-                  {plan.popular ? t("pricing.mostPopular") : t(`pricing.plans.${plan.id}.banner`)}
-                </div>
-
+              <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card">
                 <div className="flex flex-1 flex-col p-6">
                   <div className="min-h-41">
                     <h3 className="text-3xl font-bold">{t(`pricing.plans.${plan.id}.name`)}</h3>
@@ -141,7 +122,7 @@ export default async function PricingPage() {
                   <Button
                     asChild
                     size="xl"
-                    variant={plan.popular ? "default" : "contrast"}
+                    variant="contrast"
                     className="mt-8 w-full"
                   >
                     <Link href="/register">
