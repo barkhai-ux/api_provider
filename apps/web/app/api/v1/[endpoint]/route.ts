@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { isGeoTokenValid } from "@/lib/geo-token";
 import { clientIp, errorResponse } from "@/lib/http";
 import { serverEnv } from "@/lib/server-env";
 
@@ -97,6 +98,13 @@ export async function GET(request: NextRequest, ctx: RouteContext<"/api/v1/[endp
   const { endpoint } = await ctx.params;
   const spec = Object.hasOwn(ENDPOINTS, endpoint) ? ENDPOINTS[endpoint] : undefined;
   if (!spec) return errorResponse(404, "NOT_FOUND", "The requested resource was not found.");
+
+  // This proxy is for the site's own pages: every call must carry a per-session
+  // token that only a server-rendered page hands out (see lib/geo-token.ts).
+  // A bare request that just found the URL has none and is refused here.
+  if (!isGeoTokenValid(request.headers.get("x-geo-token"))) {
+    return errorResponse(401, "AUTHENTICATION_REQUIRED", "This endpoint is only available from the map.");
+  }
 
   const incoming = request.nextUrl.searchParams;
   if (incoming.toString().length > MAX_QUERY_LENGTH) return invalid("The query string is too long.");

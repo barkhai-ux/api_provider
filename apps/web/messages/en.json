@@ -2,6 +2,7 @@
   "nav": {
     "map": "Map",
     "developers": "Developers",
+    "pricing": "Pricing",
     "documentation": "Documentation",
     "apiReference": "API reference"
   },
@@ -205,6 +206,67 @@
       "subtitle": "Create an account, get a key and make your first request.",
       "getStarted": "Get started for free",
       "apiReference": "API reference"
+    }
+  },
+  "pricing": {
+    "eyebrow": "Simple pricing",
+    "title": "A plan for every scale",
+    "subtitle": "Start free, then grow without changing your integration. Every plan includes the same stable API and clear monthly limits.",
+    "plansHeading": "Monthly plans",
+    "mostPopular": "Most popular",
+    "perMonth": "/ month",
+    "custom": "Let’s talk",
+    "requests": "{count} requests / month",
+    "customRequests": "Custom monthly volume",
+    "rateLimit": "Up to {count} requests per minute",
+    "customRateLimit": "Rate limits sized for your workload",
+    "getStarted": "Get started",
+    "contactUs": "Contact us",
+    "note": "Prices are billed monthly in USD. Usage limits apply per account; no setup fees or long-term commitment.",
+    "plans": {
+      "starter": {
+        "name": "Starter",
+        "banner": "Build and explore",
+        "description": "For prototypes, personal projects and your first production integration."
+      },
+      "essentials": {
+        "name": "Essentials",
+        "banner": "Save as you grow",
+        "description": "For production apps that need dependable capacity and support."
+      },
+      "pro": {
+        "name": "Pro",
+        "banner": "Built for scale",
+        "description": "For high-volume location products and operational workloads."
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "banner": "Designed around you",
+        "description": "For organizations that need dedicated capacity and tailored terms."
+      }
+    },
+    "features": {
+      "geocoding": "Forward geocoding",
+      "reverseGeocoding": "Reverse geocoding",
+      "routing": "Driving and walking routes",
+      "communitySupport": "Documentation and community support",
+      "everythingStarter": "Everything in Starter",
+      "higherLimits": "Higher request and rate limits",
+      "usageAnalytics": "Live usage analytics",
+      "emailSupport": "Email support",
+      "everythingEssentials": "Everything in Essentials",
+      "priorityRouting": "Priority routing capacity",
+      "multipleProjects": "Multiple production projects",
+      "prioritySupport": "Priority support",
+      "customVolume": "Custom monthly request volume",
+      "dedicatedCapacity": "Dedicated capacity and limits",
+      "serviceAgreement": "Custom service agreement",
+      "technicalContact": "Dedicated technical contact"
+    },
+    "cta": {
+      "title": "Start building for free",
+      "subtitle": "Create an account, get an API key and send your first request in minutes.",
+      "readDocs": "Read the docs"
     }
   }
 }

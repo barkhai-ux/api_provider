@@ -18,6 +18,7 @@ const COLUMNS = [
       { href: "/developers/docs", label: "Documentation" },
       { href: "/developers/api-reference", label: "API reference" },
       { href: "/developers/docs/examples", label: "Code examples" },
+      { href: "/pricing", label: "Pricing" },
     ],
   },
   {

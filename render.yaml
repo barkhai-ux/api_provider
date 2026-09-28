@@ -104,6 +104,11 @@ services:
         sync: false
       - key: SITE_API_KEY
         sync: false
+      # Signs the per-session tokens that gate the /api/v1 map proxy. Generated
+      # so it is independent of the site key; if unset the code falls back to
+      # SITE_API_KEY.
+      - key: GEO_TOKEN_SECRET
+        generateValue: true
       # Render runs behind Cloudflare, which sets this header to the visitor's
       # IP and overwrites any value the client sends.
       - key: CLIENT_IP_HEADER

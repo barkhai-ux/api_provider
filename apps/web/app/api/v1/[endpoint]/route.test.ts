@@ -4,11 +4,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
 const { GET } = await import("./route");
+const { mintGeoToken } = await import("@/lib/geo-token");
 
 const SITE_KEY = "geo_" + "S".repeat(32);
 
 function call(endpoint: string, query: string, headers: Record<string, string> = {}) {
-  const request = new NextRequest(`http://localhost:3000/api/v1/${endpoint}?${query}`, { headers });
+  // Minted with the secret set for the test (GEO_TOKEN_SECRET, below).
+  const request = new NextRequest(`http://localhost:3000/api/v1/${endpoint}?${query}`, {
+    headers: { "x-geo-token": mintGeoToken().token, ...headers },
+  });
   return GET(request, { params: Promise.resolve({ endpoint }) } as never);
 }
 
@@ -21,6 +25,7 @@ describe("/api/v1 proxy", () => {
 
   beforeEach(() => {
     vi.stubEnv("SITE_API_KEY", SITE_KEY);
+    vi.stubEnv("GEO_TOKEN_SECRET", "t".repeat(48));
     vi.stubEnv("API_INTERNAL_URL", "http://api.internal:8000");
     vi.stubGlobal("fetch", fetchMock);
     fetchMock.mockReset();
@@ -45,6 +50,17 @@ describe("/api/v1 proxy", () => {
     expect(response.headers.get("set-cookie")).toBeNull();
     expect(response.headers.get("server")).toBeNull();
     expect(await response.text()).not.toContain(SITE_KEY);
+  });
+
+  it("refuses a request without a valid per-session token", async () => {
+    const bare = new NextRequest("http://localhost:3000/api/v1/geocode?q=sukh");
+    expect((await GET(bare, { params: Promise.resolve({ endpoint: "geocode" }) } as never)).status).toBe(401);
+
+    const forged = new NextRequest("http://localhost:3000/api/v1/geocode?q=sukh", {
+      headers: { "x-geo-token": mintGeoToken(Date.now() - 60 * 60_000).token },
+    });
+    expect((await GET(forged, { params: Promise.resolve({ endpoint: "geocode" }) } as never)).status).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("refuses anything that is not an allowlisted endpoint", async () => {

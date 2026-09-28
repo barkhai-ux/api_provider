@@ -3,6 +3,7 @@ export type NavItem = { href: string; labelKey: string; match: (pathname: string
 export const PUBLIC_NAV: NavItem[] = [
   { href: "/", labelKey: "nav.map", match: (p) => p === "/" },
   { href: "/developers", labelKey: "nav.developers", match: (p) => p === "/developers" },
+  { href: "/pricing", labelKey: "nav.pricing", match: (p) => p === "/pricing" },
   { href: "/developers/docs", labelKey: "nav.documentation", match: (p) => p.startsWith("/developers/docs") },
   {
     href: "/developers/api-reference",
