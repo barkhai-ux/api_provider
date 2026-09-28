@@ -1,0 +1,19 @@
+# Use after the root docker-compose.yml. Requires Docker Compose 2.24.4+.
+services:
+  web:
+    ports: !override
+      - "127.0.0.1:8008:3000"
+  api:
+    # Convex HTTP actions are private on the Docker network.
+    environment:
+      ALLOW_HTTP_UPSTREAMS: "true"
+    env_file: !override
+      - /etc/api-provider/production.env
+    ports: !override
+      - "127.0.0.1:8009:8000"
+  convex-backend:
+    environment:
+      REDACT_LOGS_TO_CLIENT: "true"
+    ports: !override
+      - "127.0.0.1:3210:3210"
+      - "127.0.0.1:3211:3211"

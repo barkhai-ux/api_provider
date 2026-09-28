@@ -13,6 +13,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  deployment:
+    name: Deployment safeguards
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 -m unittest discover -s deploy/production -p "test_*.py"
+
   web:
     name: Web, Convex and packages
     runs-on: ubuntu-latest

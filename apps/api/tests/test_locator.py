@@ -139,9 +139,7 @@ async def test_reverse_geocode_uses_the_locator(locator_settings, mock_router) -
     )
     app = create_app(locator_settings, http_client=httpx.AsyncClient())
     async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as http:
-        response = await http.get(
-            "/v1/geocode", params={"lat": 47.9184, "lon": 106.9177}, headers=auth()
-        )
+        response = await http.get("/v1/geocode", params={"lat": 47.9184, "lon": 106.9177}, headers=auth())
     result = response.json()["results"][0]
     assert result["address"] == "Сүхбаатарын талбай, 6-р хороо, Сүхбаатар, Mongolia"
     assert result["name"] == "Сүхбаатарын талбай"

@@ -1,0 +1,11 @@
+[Unit]
+Description=Check api_provider main for a passing release every minute
+
+[Timer]
+OnBootSec=2min
+OnUnitInactiveSec=60s
+RandomizedDelaySec=10s
+Unit=api-provider-deploy.service
+
+[Install]
+WantedBy=timers.target

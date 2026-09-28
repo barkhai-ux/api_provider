@@ -26,7 +26,8 @@ RUN npm ci --workspace @geo-platform/convex --include=dev --ignore-scripts --no-
 COPY apps/convex apps/convex
 # Run the deploy job as an unprivileged user. The Convex CLI writes only its
 # config/cache under HOME.
-RUN useradd --system --uid 10001 --home-dir /home/deploy --create-home deploy \
+RUN chmod 0755 /convex/generate_key \
+ && useradd --system --uid 10001 --home-dir /home/deploy --create-home deploy \
  && chown -R deploy:deploy /workspace/apps/convex
 ENV HOME=/home/deploy
 USER deploy
