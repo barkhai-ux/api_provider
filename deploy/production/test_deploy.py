@@ -58,5 +58,10 @@ class DeploymentTests(unittest.TestCase):
             self.assertEqual(deployment.STATE.read_text().strip(), SHA)
             self.assertEqual(sum(call.args[0] == "curl" for call in run.call_args_list), 3)
 
+    def test_nginx_routes_demo_and_customer_apis_to_fastapi(self):
+        config = Path(__file__).with_name("nginx.conf").read_text()
+        self.assertIn("location /demo/ { proxy_pass http://127.0.0.1:8009; }", config)
+        self.assertIn("location /v1/ { proxy_pass http://127.0.0.1:8009; }", config)
+
 if __name__ == "__main__":
     unittest.main()

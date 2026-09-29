@@ -9,6 +9,7 @@ a failed runtime update needs operator attention (no automatic database rollback
 ## Server layout
 
 - Website: https://developers.ubhub.mn
+- Anonymous demo API: https://developers.ubhub.mn/demo/
 - Public API: https://developers.ubhub.mn/v1/
 - Convex browser HTTPS/WebSocket endpoint: https://developers.ubhub.mn/convex
 - Private secrets: `/etc/api-provider/production.env` (root, mode 0600)
