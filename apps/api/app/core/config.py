@@ -88,6 +88,8 @@ class Settings(BaseSettings):
     # Browser origins allowed to call /v1 (the developer playground). An
     # explicit list is required in production; "*" is refused there.
     cors_origins: CommaList = ["*"]
+    # Origins allowed to call the anonymous demo directly from a browser.
+    demo_cors_origins: CommaList = []
     max_request_body_bytes: int = Field(default=16 * 1024, ge=1024)
     max_query_string_bytes: int = Field(default=2048, ge=256)
     max_query_params: int = Field(default=16, ge=1)
@@ -120,6 +122,23 @@ class Settings(BaseSettings):
     # 0 disables it (every request authorizes in Convex). Playground tokens are
     # never cached. Keep small if you run more than one instance.
     auth_cache_ttl_seconds: float = Field(default=0.0, ge=0)
+
+    # --- Anonymous demo ----------------------------------------------------
+    # The demo is a separate, deliberately constrained surface. Limits are
+    # enforced in Convex so they remain shared when the API scales out.
+    demo_requests_per_minute: int = Field(default=20, ge=1)
+    demo_requests_per_hour: int = Field(default=100, ge=1)
+    demo_global_units_per_minute: int = Field(default=5_000, ge=1)
+    demo_geocode_cost: int = Field(default=1, ge=1, le=100)
+    demo_reverse_cost: int = Field(default=1, ge=1, le=100)
+    demo_route_cost: int = Field(default=5, ge=1, le=100)
+    demo_max_query_length: int = Field(default=512, ge=2, le=2048)
+    demo_max_results: int = Field(default=5, ge=1, le=20)
+    demo_timeout_seconds: float = Field(default=5.0, gt=0, le=30)
+    demo_max_concurrency: int = Field(default=4, ge=1, le=64)
+    demo_queue_timeout_seconds: float = Field(default=0.25, gt=0, le=5)
+    demo_cache_ttl_seconds: int = Field(default=60, ge=0, le=3600)
+    demo_cache_max_entries: int = Field(default=2_000, ge=1, le=100_000)
 
     # --- Caching -----------------------------------------------------------
     # In-process cache for geocoding results. 0 disables it (the default).
@@ -160,6 +179,8 @@ class Settings(BaseSettings):
     arcgis_queue_timeout_seconds: float = Field(default=5.0, gt=0)
     arcgis_max_response_bytes: int = Field(default=32 * 1024 * 1024, ge=64 * 1024)
     arcgis_max_records: int = Field(default=250_000, ge=1)
+    arcgis_circuit_failure_threshold: int = Field(default=5, ge=1, le=100)
+    arcgis_circuit_recovery_seconds: float = Field(default=30.0, gt=0, le=600)
 
     # Places layer (forward geocoding)
     arcgis_places_name_field: str = "name"
@@ -261,6 +282,7 @@ class Settings(BaseSettings):
 
     @field_validator(
         "cors_origins",
+        "demo_cors_origins",
         "arcgis_oneway_forward_values",
         "arcgis_oneway_reverse_values",
         "routing_driving_excluded_classes",
@@ -313,9 +335,15 @@ class Settings(BaseSettings):
             return self
         if "*" in self.cors_origins:
             problems.append("CORS_ORIGINS must list the allowed origins explicitly (not *)")
-        for origin in self.cors_origins:
-            if origin != "*" and not origin.startswith("https://"):
-                problems.append(f"CORS_ORIGINS entry {origin!r} must be an https origin")
+        if "*" in self.demo_cors_origins:
+            problems.append("DEMO_CORS_ORIGINS must list the allowed origins explicitly (not *)")
+        for setting_name, origins in (
+            ("CORS_ORIGINS", self.cors_origins),
+            ("DEMO_CORS_ORIGINS", self.demo_cors_origins),
+        ):
+            for origin in origins:
+                if origin != "*" and not origin.startswith("https://"):
+                    problems.append(f"{setting_name} origin {origin!r} must be an https origin")
         if not self.public_api_url.startswith("https://"):
             problems.append("PUBLIC_API_URL must be an https URL")
         if self.api_key_pepper.get_secret_value() == self.gateway_secret.get_secret_value():
@@ -332,6 +360,11 @@ class Settings(BaseSettings):
                 problems.append(f"{name} must be at least {MIN_SECRET_LENGTH} characters")
         if self.site_api_key is not None and "DevOnly" in self.site_api_key.get_secret_value():
             problems.append("SITE_API_KEY still uses a development default")
+        if self.auth_cache_ttl_seconds > 0:
+            problems.append(
+                "AUTH_CACHE_TTL_SECONDS must be 0 in production so revocation, scopes and "
+                "distributed quotas are immediate"
+            )
         if problems:
             raise ValueError("Refusing to start in production: " + "; ".join(problems))
         return self

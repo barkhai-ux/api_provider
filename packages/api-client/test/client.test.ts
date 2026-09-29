@@ -30,6 +30,22 @@ describe("GeoClient", () => {
     expect(fetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
   });
 
+  it("uses the isolated demo namespace without a credential", async () => {
+    const fetch = vi.fn().mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({ query: "", results: [], count: 0 }), {
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    const client = new GeoClient({ baseUrl: "https://api.example.com", surface: "demo", fetch });
+    await client.geocode({ q: "Ulaanbaatar", limit: 5 });
+    await client.reverseGeocode({ lat: 47.9, lon: 106.9 });
+    expect(fetch.mock.calls[0][0]).toBe("https://api.example.com/demo/geocode?q=Ulaanbaatar&limit=5");
+    expect(fetch.mock.calls[1][0]).toBe("https://api.example.com/demo/reverse?lat=47.9&lon=106.9");
+    expect(fetch.mock.calls[0][1].headers.Authorization).toBeUndefined();
+  });
+
   it("throws GeoApiError with the error envelope and rate-limit info", async () => {
     const fetch = reply(
       { error: { code: "RATE_LIMIT_EXCEEDED", message: "Too many requests.", details: { limit: 100 } } },

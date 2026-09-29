@@ -44,17 +44,16 @@ No `dangerouslySetInnerHTML` with user or ArcGIS data. Markdown is not rendered 
 
 | Route | Methods | Protection |
 |---|---|---|
-| `/api/v1/[endpoint]` | GET | Allowlist `geocode` (forward `q`, or reverse `lat`+`lon`) and `route`; per-endpoint parameter allowlist; one value per parameter; format and range checks (NaN/Infinity, lat ±90, lon ±180, `q` 2–200, `limit` 1–20, `mode`); query ≤ 1 KB; upstream request built from scratch (Accept, Authorization with the server-only site key, X-Client-IP from a trusted header only); redirects refused; 25 s timeout (504); only JSON passed back, ≤ 2 MB, allowlisted headers; `no-store` |
 | `/api/playground/token` | POST | Same-origin check (`Sec-Fetch-Site`/Origin), session required, body ≤ 1 KB, Zod-validated, ownership checked in Convex; `private, no-store` |
 | `/api/playground/keys`, `/api/session` | GET | Session required; minimal fields; `private, no-store` |
 | `/api/auth` | POST | Convex Auth proxy (Origin check); per-visitor throttle; errors mapped to stable codes |
 
-`proxy.ts` matches all pages and `/api/*` except `/api/v1/*` and static assets. Dashboard pages are also checked on the server in their layout, and every Convex function checks the session again, so a bypass of the redirect exposes nothing.
+`proxy.ts` matches all pages and `/api/*` except static assets. Dashboard pages are also checked on the server in their layout, and every Convex function checks the session again, so a bypass of the redirect exposes nothing. The map calls the public FastAPI `/demo/*` origin directly; it has no customer credential to leak.
 
 ## Secrets and configuration
 
 - Browser-visible: only `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_CONVEX_URL`, `NEXT_PUBLIC_MAP_STYLE_URL` (public by design, inlined at build time).
-- Server-only: `SITE_API_KEY`, `API_INTERNAL_URL`, `CONVEX_URL`, `CLIENT_IP_HEADER`, `TRUSTED_PROXY_HOPS`, read through modules that import `server-only`.
+- Server-only: `API_INTERNAL_URL`, `CONVEX_URL`, `CLIENT_IP_HEADER`, `TRUSTED_PROXY_HOPS`, read through modules that import `server-only`. The legacy `SITE_API_KEY` is not used by the website demo.
 - Production builds ship no browser source maps; server source maps are deleted from the image.
 - Checked by the E2E bundle scan and by searching a production build for the secret values (see `SECURITY_REPORT.md`).
 

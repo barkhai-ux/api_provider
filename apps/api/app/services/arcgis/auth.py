@@ -78,7 +78,12 @@ class _CachedTokenProvider:
     def __init__(self, http: httpx.AsyncClient, *, referer: str | None, timeout_seconds: float) -> None:
         self._http = http
         self._referer = referer
-        self._timeout = timeout_seconds
+        self._http_timeout = httpx.Timeout(
+            connect=min(3.0, timeout_seconds),
+            read=timeout_seconds,
+            write=timeout_seconds,
+            pool=timeout_seconds,
+        )
         self._token: str | None = None
         self._renew_at = 0.0
         self._failed_until = 0.0
@@ -123,7 +128,9 @@ class _CachedTokenProvider:
     async def _post(self, url: str, form: dict[str, str]) -> dict[str, object]:
         headers = {"Referer": self._referer} if self._referer else {}
         try:
-            response = await self._http.post(url, data=form, headers=headers, timeout=self._timeout)
+            response = await self._http.post(
+                url, data=form, headers=headers, timeout=self._http_timeout
+            )
         except httpx.HTTPError as exc:
             raise ArcGISUnavailableError(f"Could not reach the token service ({type(exc).__name__})") from exc
         try:

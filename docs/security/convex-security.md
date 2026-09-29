@@ -8,7 +8,7 @@ Code: `apps/convex/convex`. Tests: `apps/convex/tests` (`npm test --workspace @g
 |---|---|---|
 | Public queries/mutations/actions | `apiKeys.*`, `usage.*`, `users.*`, `auth:*` (Convex Auth) | Active session required (`requireUserId`: JWT + existing, unexpired session + account not disabled + not the system account); every id argument checked for ownership |
 | Internal functions | `gateway.*`, `platform.*`, `maintenance.*`, `admin.*`, helpers | Not callable from clients; run by HTTP actions, crons or the CLI with an admin/deploy key |
-| HTTP actions | `/gateway/health`, `/gateway/authorize`, `/gateway/usage`, Convex Auth routes | Gateway routes require `Authorization: Bearer <GATEWAY_SECRET>` |
+| HTTP actions | `/gateway/health`, `/gateway/authorize`, `/gateway/demo-authorize`, `/gateway/usage`, Convex Auth routes | Gateway routes require `Authorization: Bearer <GATEWAY_SECRET>` |
 
 ## Tenant isolation
 
@@ -22,7 +22,8 @@ Code: `apps/convex/convex`. Tests: `apps/convex/tests` (`npm test --workspace @g
 
 - Secret compared in constant time; secrets shorter than 32 characters are never accepted; `GATEWAY_SECRET_PREVIOUS` allows zero-downtime rotation.
 - Bodies must be JSON objects ≤ 256 KB; malformed input gets 400, not 500.
-- `authorize`: hash format checked; limits clamped; endpoint scope, revocation, expiry and the owner's `disabledAt` checked; layered limits (see [rate-limiting.md](rate-limiting.md)); visitor IPs stored only as HMAC hashes.
+- `authorize`: hash format checked; limits clamped; endpoint scope, revocation, expiry and the owner's `disabledAt` checked; layered minute limits and durable daily/monthly cost quotas (see [rate-limiting.md](rate-limiting.md)); visitor IPs stored only as HMAC hashes.
+- `authorizeDemo`: independently enforces per-IP minute/hour, endpoint and global cost buckets. The address is HMACed before storage; Origin, Referer and User-Agent are not authentication inputs.
 - `recordUsage`: at most 1000 records per call; each record is dropped unless its key exists and belongs to the named user, the endpoint is one of the three `/v1` paths, the method is GET/HEAD, the status is an integer 100–599 and the time is within the last 24 hours (and not in the future); the owner written is always the key's owner.
 - Replay: the gateway authenticates with a static bearer over TLS; a captured request could be replayed only by someone who can already read the secret. Accepted; rotate on suspicion.
 
@@ -34,6 +35,8 @@ The website's site key belongs to a system account (`isSystem: true`, no passwor
 
 - `apiRequests`: raw rows deleted after `USAGE_RETENTION_DAYS` (30); the prune job reschedules itself while there is more to delete.
 - `rateLimitWindows`: deleted after 5 minutes; contain hashed IPs only.
+- `quotaWindows`: daily/monthly cost counters retained only for the configured accounting horizon.
+- `securityAuditEvents`: append-oriented security events retained for `AUDIT_RETENTION_DAYS` (365 by default).
 - `playgroundTokens`: deleted when expired, when the key is revoked or regenerated; at most 5 per key.
 - `usageDaily`: aggregate counts per key, endpoint and day, kept for the dashboard.
 - Keys: at most 25 active and 200 total per account.
@@ -44,4 +47,4 @@ The website's site key belongs to a system account (`isSystem: true`, no passwor
 
 ## Environment variables
 
-Set with `npx convex env set` (or `apps/convex/scripts/deploy.sh`): `API_KEY_PEPPER`, `GATEWAY_SECRET` (+ optional `GATEWAY_SECRET_PREVIOUS`), `SITE_API_KEY`, `SITE_URL`, `ENVIRONMENT` (only `development`/`test` enable dev-only paths; anything else is production), `EMAIL_BACKEND`/`RESEND_API_KEY`/`EMAIL_FROM`, `RATE_LIMIT_PER_MINUTE`, `ACCOUNT_RATE_LIMIT_PER_MINUTE`, `ROUTE_RATE_LIMIT_PER_MINUTE`, `USAGE_RETENTION_DAYS`, and `JWT_PRIVATE_KEY`/`JWKS` (generated once by the deploy script). Deploy keys and admin keys grant full access: keep them out of the repository and CI logs, and use a production deploy key only in the release job.
+Set with `npx convex env set` (or `apps/convex/scripts/deploy.sh`): `API_KEY_PEPPER`, `GATEWAY_SECRET` (+ optional `GATEWAY_SECRET_PREVIOUS`), optional legacy `SITE_API_KEY`, `SITE_URL`, `ENVIRONMENT`, email settings, rate/quota settings, `USAGE_RETENTION_DAYS`, `AUDIT_RETENTION_DAYS`, and `JWT_PRIVATE_KEY`/`JWKS`. Deploy and admin keys grant full access: keep them out of the repository and CI logs, and use a production deploy key only in the release job.

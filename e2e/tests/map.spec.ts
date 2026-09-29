@@ -10,37 +10,34 @@ const place = {
 };
 
 /**
- * The map talks to /api/v1/* (the site's proxy to the public API). These tests
+ * The map talks directly to the intentionally public /demo surface. These tests
  * stub those responses in the browser so the UI is checked independently of
  * which data source is configured; api-keys.spec.ts covers the live chain.
  */
 test.beforeEach(async ({ page }) => {
-  // One geocoding endpoint: forward (q) or reverse (lat/lon).
-  await page.route("**/api/v1/geocode?**", (route) => {
-    const url = new URL(route.request().url());
-    if (url.searchParams.has("lat")) {
-      route.fulfill({
-        json: {
-          query: "47.92,106.92",
-          results: [
-            {
-              id: "rev_1",
-              name: "Chingis Avenue",
-              address: "Chingis Avenue, Ulaanbaatar, Mongolia",
-              latitude: 47.92,
-              longitude: 106.92,
-              type: "street",
-              distance_meters: 12,
-            },
-          ],
-          count: 1,
-        },
-      });
-      return;
-    }
+  await page.route("**/demo/geocode?**", (route) => {
     route.fulfill({ json: { query: "sukh", results: [place], count: 1 }, headers: { "X-RateLimit-Limit": "60" } });
   });
-  await page.route("**/api/v1/route?**", (route) =>
+  await page.route("**/demo/reverse?**", (route) =>
+    route.fulfill({
+      json: {
+        query: "47.92,106.92",
+        results: [
+          {
+            id: "rev_1",
+            name: "Chingis Avenue",
+            address: "Chingis Avenue, Ulaanbaatar, Mongolia",
+            latitude: 47.92,
+            longitude: 106.92,
+            type: "street",
+            distance_meters: 12,
+          },
+        ],
+        count: 1,
+      },
+    }),
+  );
+  await page.route("**/demo/route?**", (route) =>
     route.fulfill({
       json: {
         route: {

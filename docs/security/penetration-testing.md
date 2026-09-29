@@ -31,7 +31,7 @@ For production-like behaviour (docs off, HSTS, strict CORS and upstream checks),
 | Rate-limit inputs, visitor address trust | `apps/api/tests/security/test_rate_limits.py` |
 | Error and log leakage | `apps/api/tests/security/test_information_leakage.py` |
 | IDOR, sessions, gateway input, system account | `apps/convex/tests/*.test.ts` |
-| Map proxy strictness, client IP trust, redirects | `apps/web/app/api/v1/[endpoint]/route.test.ts`, `apps/web/lib/http.test.ts`, `components/auth/*.test.tsx` |
+| Demo strictness, client IP trust, redirects | `apps/api/tests/security/test_demo.py`, `test_input_validation.py`, `apps/web/lib/http.test.ts`, `components/auth/*.test.tsx` |
 | CSP nonce, CSP violations, bundle secrets, open redirect, proxy, API shape limits | `e2e/tests/security.spec.ts` |
 
 ## Manual test plan

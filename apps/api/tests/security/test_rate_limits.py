@@ -48,6 +48,17 @@ async def test_site_key_without_visitor_ip_shares_one_bucket(
     assert first == second
 
 
+async def test_durable_quota_exhaustion_has_stable_error_and_retry_after(
+    client: httpx.AsyncClient, convex: ConvexFake
+) -> None:
+    key = "geo_" + "Q" * 32
+    convex.add_key(key, status="quota_exceeded")
+    response = await client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))
+    assert response.status_code == 429
+    assert response.json()["error"]["code"] == "QUOTA_EXCEEDED"
+    assert int(response.headers["Retry-After"]) > 0
+
+
 @pytest.mark.parametrize(
     ("value", "bucket"),
     [

@@ -29,7 +29,7 @@ Render builds both images from this repository using the Blueprint in [`render.y
 node scripts/generate-secrets.mjs > .env.production
 ```
 
-This writes `API_KEY_PEPPER`, `GATEWAY_SECRET` and `SITE_API_KEY`. The file is gitignored; keep a copy in a password manager. Do not reuse the development values: API keys are hashed with `API_KEY_PEPPER`, and changing it later invalidates every key.
+This writes the backend secrets, including the optional legacy `SITE_API_KEY`. The file is gitignored; keep a copy in a password manager. Do not reuse values between environments.
 
 ## 2. Deploy Convex to production
 
@@ -64,6 +64,7 @@ In the Render Dashboard choose **New > Blueprint**, select this repository and b
 |---|---|
 | `PUBLIC_API_URL` | `https://geoplatform-api.onrender.com` |
 | `CORS_ORIGINS` | `https://geoplatform-web.onrender.com` (the website; `*` is refused in production) |
+| `DEMO_CORS_ORIGINS` | `https://geoplatform-web.onrender.com` |
 | `CONVEX_SITE_URL` | Convex HTTP Actions URL (`.convex.site`) |
 | `API_KEY_PEPPER`, `GATEWAY_SECRET`, `SITE_API_KEY` | from `.env.production` |
 | `ARCGIS_*` | from the root `.env` |
@@ -76,7 +77,6 @@ In the Render Dashboard choose **New > Blueprint**, select this repository and b
 | `NEXT_PUBLIC_CONVEX_URL` | Convex Cloud URL (`.convex.cloud`) |
 | `CONVEX_URL` | Convex Cloud URL (same as above) |
 | `API_INTERNAL_URL` | `https://geoplatform-api.onrender.com` |
-| `SITE_API_KEY` | from `.env.production` (same as the API) |
 
 Click **Apply**. The first build of the website takes several minutes.
 
@@ -97,7 +97,7 @@ curl https://geoplatform-api.onrender.com/health
 
 Then open the website:
 
-1. Search on the map. This goes through the website's server with `SITE_API_KEY`, so it checks the web > API > Convex > ArcGIS chain.
+1. Search on the map. This goes through the website's fixed adapter and FastAPI `/demo` policy, so it checks the web > demo limiter > API > Convex > ArcGIS chain without a customer key.
 2. Create an account, create an API key on the dashboard and call the API with it:
 
    ```bash
@@ -118,7 +118,7 @@ If map searches fail with `SERVICE_UNAVAILABLE` or `UPSTREAM_ERROR`, check the A
 
 ## Visitor IP addresses
 
-The public map limits requests per visitor (`SITE_KEY_PER_IP_PER_MINUTE`). The website reads the visitor's IP from the header named in `CLIENT_IP_HEADER`, which the Blueprint sets to `cf-connecting-ip`: Render runs behind Cloudflare, which sets that header and overwrites any value sent by the client. If the header is missing, the website falls back to the right-most `X-Forwarded-For` entry, which on Render may be a proxy address shared by all visitors. In that case all visitors share one limit, and the map may return `429` under load.
+The public map uses the independently configurable demo minute/hour limits. The website reads the visitor address only from the trusted header configured by `CLIENT_IP_HEADER`. If no trusted address is available, requests deliberately share one anonymous bucket and fail closed under load; arbitrary forwarded headers are not trusted.
 
 ## Updating
 

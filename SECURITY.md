@@ -17,9 +17,9 @@ Only the latest `main` is supported. The public API contract is `/v1`.
 | Threat model | STRIDE per trust boundary | [docs/security/threat-model.md](docs/security/threat-model.md) |
 | Accounts | Convex Auth, length-based password policy with a common-password check, session checks on every call, per-account and per-visitor throttling | [authentication.md](docs/security/authentication.md) |
 | API keys | 190-bit keys, HMAC-SHA256 with a pepper, shown once, endpoint scopes, expiry, instant revocation, header only | [api-key-security.md](docs/security/api-key-security.md) |
-| Abuse | Layered rate limits (edge, IP, key, account, endpoint, visitor), request shape limits, upstream budget | [rate-limiting.md](docs/security/rate-limiting.md) |
+| Abuse | Isolated `/demo` policy; distributed IP/key/tenant/endpoint/global limits; durable cost quotas; request/upstream budgets and circuit breaker | [rate-limiting.md](docs/security/rate-limiting.md) |
 | SSRF | No user-controlled destinations; validated upstream configuration; no redirects | [ssrf.md](docs/security/ssrf.md) |
-| Website | Nonce-based CSP, strict proxy routes, no secrets in bundles, safe redirects | [frontend-security.md](docs/security/frontend-security.md) |
+| Website | Nonce-based CSP, direct credential-free demo client, strict auth routes, no secrets in bundles, safe redirects | [frontend-security.md](docs/security/frontend-security.md) |
 | Data backend | Tenant isolation in every Convex function, protected gateway actions, operator tools | [convex-security.md](docs/security/convex-security.md) |
 | ArcGIS | Server-side credentials, bounded adapter, least privilege | [arcgis-security.md](docs/security/arcgis-security.md) |
 | Containers | Non-root, read-only, no capabilities, minimal images | [docker-hardening.md](docs/security/docker-hardening.md) |

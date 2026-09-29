@@ -55,6 +55,35 @@ describe("gateway authorize", () => {
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "geocode" }))).status).toBe("ok");
   });
 
+  it("limits each endpoint independently", async () => {
+    const t = setup();
+    process.env.ENDPOINT_RATE_LIMIT_PER_MINUTE = "2";
+    const alice = await signedInUser(t, "alice@example.com");
+    await insertKey(t, alice.userId, { keyHash: HASH });
+    const geocode = [];
+    for (let i = 0; i < 3; i++) {
+      geocode.push((await t.mutation(internal.gateway.authorize, authorizeArgs())).status);
+    }
+    expect(geocode).toEqual(["ok", "ok", "rate_limited"]);
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
+  });
+
+  it("enforces a global authenticated-traffic ceiling across tenants", async () => {
+    const t = setup();
+    process.env.GLOBAL_RATE_LIMIT_PER_MINUTE = "3";
+    const alice = await signedInUser(t, "alice@example.com");
+    const bob = await signedInUser(t, "bob@example.com");
+    await insertKey(t, alice.userId, { keyHash: "b".repeat(64) });
+    await insertKey(t, bob.userId, { keyHash: "c".repeat(64) });
+    const statuses = [];
+    for (const hash of ["b", "c", "b", "c"]) {
+      statuses.push(
+        (await t.mutation(internal.gateway.authorize, authorizeArgs({ hash: hash.repeat(64) }))).status,
+      );
+    }
+    expect(statuses).toEqual(["ok", "ok", "ok", "rate_limited"]);
+  });
+
   it("limits the site key per visitor and stores only hashed IPs", async () => {
     const t = setup();
     const system = await t.run((ctx) => ctx.db.insert("users", { email: "platform@system.internal", isSystem: true }));
@@ -97,6 +126,48 @@ describe("gateway authorize", () => {
     const alice = await signedInUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH, expiresAt: Date.now() - 1 });
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("expired");
+  });
+
+  it("enforces durable key, tenant and endpoint quotas using operation costs", async () => {
+    const t = setup();
+    process.env.KEY_DAILY_QUOTA_UNITS = "6";
+    process.env.KEY_MONTHLY_QUOTA_UNITS = "6";
+    process.env.TENANT_DAILY_QUOTA_UNITS = "6";
+    process.env.TENANT_MONTHLY_QUOTA_UNITS = "6";
+    process.env.ENDPOINT_MONTHLY_QUOTA_UNITS = "6";
+    process.env.ROUTE_COST_UNITS = "5";
+    const alice = await signedInUser(t, "alice@example.com");
+    await insertKey(t, alice.userId, { keyHash: HASH });
+
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("ok");
+    const refused = await t.mutation(internal.gateway.authorize, authorizeArgs());
+    expect(refused.status).toBe("quota_exceeded");
+    expect(refused.rateLimit?.remaining).toBe(0);
+
+    const windows = await t.run((ctx) => ctx.db.query("quotaWindows").collect());
+    expect(windows).toHaveLength(6);
+    expect(windows.reduce((total, window) => total + window.units, 0)).toBe(30);
+    const audit = await t.run((ctx) => ctx.db.query("securityAuditEvents").collect());
+    expect(audit.some((event) => event.event === "api_quota_exhausted")).toBe(true);
+    expect(audit.every((event) => JSON.stringify(event).includes(HASH) === false)).toBe(true);
+  });
+
+  it("limits the anonymous demo across minute and hour buckets without storing raw IPs", async () => {
+    const t = setup();
+    const args = {
+      clientIp: "203.0.113.9",
+      endpoint: "geocode",
+      cost: 1,
+      minuteLimit: 2,
+      hourLimit: 100,
+      globalMinuteLimit: 1000,
+    };
+    expect((await t.mutation(internal.gateway.authorizeDemo, args)).status).toBe("ok");
+    expect((await t.mutation(internal.gateway.authorizeDemo, args)).status).toBe("ok");
+    expect((await t.mutation(internal.gateway.authorizeDemo, args)).status).toBe("rate_limited");
+    const windows = await t.run((ctx) => ctx.db.query("rateLimitWindows").collect());
+    expect(windows.map((window) => window.bucket).join(" ")).not.toContain(args.clientIp);
   });
 });
 

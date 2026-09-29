@@ -43,6 +43,11 @@ async def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
+@router.get("/liveness", response_model=HealthResponse, include_in_schema=False)
+async def liveness() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
 async def _check_source(geo: GeoServices, name: str) -> CheckStatus:
     source = geo.data_sources.get(name)
     if source is None:
@@ -73,6 +78,11 @@ async def ready(request: Request) -> JSONResponse:
             request.app.state.readiness = cached
     body = cached[1]
     return JSONResponse(body.model_dump(), status_code=503 if body.status == "unavailable" else 200)
+
+
+@router.get("/readiness", response_model=ReadinessResponse, include_in_schema=False)
+async def readiness(request: Request) -> JSONResponse:
+    return await ready(request)
 
 
 async def _readiness(request: Request) -> ReadinessResponse:

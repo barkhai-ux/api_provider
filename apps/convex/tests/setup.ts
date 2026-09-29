@@ -14,7 +14,15 @@ export function setup() {
   process.env.ENVIRONMENT = "test";
   delete process.env.GATEWAY_SECRET_PREVIOUS;
   delete process.env.ACCOUNT_RATE_LIMIT_PER_MINUTE;
+  delete process.env.ENDPOINT_RATE_LIMIT_PER_MINUTE;
+  delete process.env.GLOBAL_RATE_LIMIT_PER_MINUTE;
   delete process.env.ROUTE_RATE_LIMIT_PER_MINUTE;
+  delete process.env.KEY_DAILY_QUOTA_UNITS;
+  delete process.env.KEY_MONTHLY_QUOTA_UNITS;
+  delete process.env.TENANT_DAILY_QUOTA_UNITS;
+  delete process.env.TENANT_MONTHLY_QUOTA_UNITS;
+  delete process.env.ENDPOINT_MONTHLY_QUOTA_UNITS;
+  delete process.env.ROUTE_COST_UNITS;
   return convexTest(schema, modules);
 }
 

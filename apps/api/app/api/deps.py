@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import hmac
 import ipaddress
 import logging
 import time
+from collections.abc import AsyncIterator
 from typing import Annotated
 
 from fastapi import Depends, Request
@@ -34,7 +36,7 @@ def get_settings(request: Request) -> Settings:
     return settings
 
 
-def get_geo_services(request: Request) -> GeoServices:
+async def get_geo_services(request: Request) -> GeoServices:
     services: GeoServices = request.app.state.geo
     return services
 
@@ -66,6 +68,10 @@ def _endpoint(request: Request) -> str:
     """The endpoint a key must be allowed to call: the /v1 path without the
     prefix, e.g. "reverse-geocode" (the names used when a key is created)."""
     return request.url.path.removeprefix("/v1/").strip("/")
+
+
+def _demo_endpoint(request: Request) -> str:
+    return request.url.path.removeprefix("/demo/").strip("/")
 
 
 def _missing_key() -> ApiError:
@@ -182,6 +188,16 @@ async def require_api_key(
             {"limit": result.rate_limit.limit} if result.rate_limit else None,
             headers={"Retry-After": retry_after},
         )
+    if result.status == "quota_exceeded":
+        retry_after = "3600"
+        if result.rate_limit is not None:
+            retry_after = str(max(1, result.rate_limit.reset - int(time.time())))
+        raise ApiError(
+            429,
+            ErrorCode.QUOTA_EXCEEDED,
+            "The usage quota has been exhausted.",
+            headers={"Retry-After": retry_after},
+        )
     if result.status == "endpoint_not_allowed":
         raise ApiError(
             403,
@@ -235,6 +251,8 @@ async def _authorize_cached(
     principal = Principal(
         key_id=description.key_id or "",
         user_id=description.user_id or "",
+        tenant_id=description.user_id or "",
+        project_id=description.key_id or "",
         is_site_key=description.is_site_key,
     )
     request.state.principal = principal
@@ -286,5 +304,65 @@ async def _authorize_cached(
     return principal
 
 
+async def require_demo_access(request: Request) -> None:
+    """Apply distributed anonymous-demo limits before any GIS work.
+
+    Origin, Referer and User-Agent are intentionally irrelevant. When a trusted
+    visitor address is unavailable all callers share one bucket (fail closed).
+    """
+    settings: Settings = request.app.state.settings
+    endpoint = _demo_endpoint(request)
+    costs = {
+        "geocode": settings.demo_geocode_cost,
+        "reverse": settings.demo_reverse_cost,
+        "route": settings.demo_route_cost,
+    }
+    cost = costs.get(endpoint, max(costs.values()))
+    client = visitor_bucket(client_address(request, settings) or "") or "unknown"
+    gateway: ConvexGateway = request.app.state.gateway
+    try:
+        result = await gateway.authorize_demo(
+            client_ip=client,
+            endpoint=endpoint,
+            cost=cost,
+            minute_limit=settings.demo_requests_per_minute,
+            hour_limit=settings.demo_requests_per_hour,
+            global_minute_limit=settings.demo_global_units_per_minute,
+        )
+    except ConvexGatewayError as exc:
+        raise _service_unavailable(exc) from exc
+    request.state.rate_limit = result.rate_limit
+    request.state.demo = True
+    if result.status == "rate_limited":
+        raise ApiError(
+            429,
+            ErrorCode.RATE_LIMIT_EXCEEDED,
+            "Too many demo requests.",
+            headers={
+                "Retry-After": str(max(1, result.rate_limit.reset - int(time.time())))
+            },
+        )
+
+
+async def demo_concurrency(request: Request) -> AsyncIterator[None]:
+    settings: Settings = request.app.state.settings
+    semaphore: asyncio.Semaphore = request.app.state.demo_semaphore
+    try:
+        await asyncio.wait_for(semaphore.acquire(), settings.demo_queue_timeout_seconds)
+    except TimeoutError as exc:
+        raise ApiError(
+            503,
+            ErrorCode.SERVICE_UNAVAILABLE,
+            "The demo is busy. Try again shortly.",
+            headers={"Retry-After": "1"},
+        ) from exc
+    try:
+        yield
+    finally:
+        semaphore.release()
+
+
 ApiKeyPrincipal = Annotated[Principal, Depends(require_api_key)]
 Geo = Annotated[GeoServices, Depends(get_geo_services)]
+DemoAccess = Annotated[None, Depends(require_demo_access)]
+DemoConcurrency = Annotated[None, Depends(demo_concurrency)]

@@ -65,6 +65,13 @@ export const ERROR_CATALOG: ErrorInfo[] = [
     example: { message: "Too many requests.", details: { limit: 100 } },
   },
   {
+    status: 429,
+    code: "QUOTA_EXCEEDED",
+    meaning: "The authenticated key or tenant used its daily or monthly cost-unit quota.",
+    action: "Wait until the Retry-After reset, reduce expensive operations, or change the customer plan.",
+    example: { message: "The usage quota has been exhausted." },
+  },
+  {
     status: 500,
     code: "INTERNAL_ERROR",
     meaning: "An unexpected error in the API.",

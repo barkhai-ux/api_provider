@@ -68,7 +68,7 @@ export function HeroShowcase() {
   }, [search.data, selected]);
 
   const results = search.data?.results ?? [];
-  const request = `GET /v1/geocode?q=${encodeURIComponent(q)}&limit=5`;
+  const request = `GET /demo/geocode?q=${encodeURIComponent(q)}&limit=5`;
   const ok = search.data?.status.startsWith("200");
 
   return (

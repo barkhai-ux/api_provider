@@ -5,7 +5,7 @@
 | Component | Tech | Responsibility | State |
 |---|---|---|---|
 | `apps/web` | Next.js 16 (App Router), Tailwind, shadcn/ui, MapLibre, TanStack Query | map, developer portal, docs, playground, dashboard; same-origin proxies | none |
-| `apps/api` | FastAPI, Pydantic, httpx | public `/v1` API: auth, rate limits, validation, errors, geo services, ArcGIS adapter, routing graph | in-memory caches only |
+| `apps/api` | FastAPI, Pydantic, httpx | customer `/v1` and isolated anonymous `/demo` gateways: auth/policy, validation, errors, geo services, ArcGIS adapter, routing graph | bounded in-memory result/metadata caches only |
 | `apps/convex` | self-hosted Convex, Convex Auth | accounts, sessions, API keys, rate-limit counters, usage | Convex database |
 | ArcGIS FeatureServer | yours | places, addresses, roads | yours |
 
@@ -24,13 +24,13 @@ flowchart LR
         arcgis[(ArcGIS FeatureServer)]
     end
     internet --> web & api & convexapi
-    web -- "SITE_API_KEY (server only)" --> api
+    web -- "fixed /demo operation; no customer key" --> api
     web -- "session cookie → JWT" --> convexapi
     api -- "GATEWAY_SECRET, key hashes only" --> convexsite
     api -- "ARCGIS_TOKEN" --> arcgis
 ```
 
-- Browsers never see `SITE_API_KEY`, `GATEWAY_SECRET`, `API_KEY_PEPPER` or any ArcGIS URL.
+- Browsers never see `GATEWAY_SECRET`, `API_KEY_PEPPER`, API keys, ArcGIS credentials or internal ArcGIS URLs.
 - Convex functions that the browser can call require a signed-in developer. The gateway functions are `internal` and reachable only through the secret-protected `/gateway/*` HTTP actions.
 
 ## Key flows
@@ -60,7 +60,7 @@ flowchart LR
    - looks up the key by hash;
    - checks revocation and expiry;
    - checks that the key may call the requested endpoint (otherwise `403 ENDPOINT_NOT_ALLOWED`, not counted against the rate limit);
-   - increments the fixed one-minute window (per key, or per visitor IP for the site key);
+   - atomically enforces per-key/account/endpoint minute limits and daily/monthly cost quotas;
    - returns the principal and the limit state.
 4. The gateway sets `X-RateLimit-*` on every `/v1` response, errors included. It returns `429` with `Retry-After` when the limit is exceeded, and `503` if Convex is unreachable.
 
@@ -79,7 +79,7 @@ If Convex is briefly down, the gateway keeps up to 50k pending records and retri
 
 ### Public map
 
-The map calls `/api/v1/*` on the website. The Next route forwards to the API with `SITE_API_KEY` and `X-Client-IP`. The API applies a per-visitor limit, so one visitor cannot exhaust the shared key.
+The map calls FastAPI `/demo/*` directly, without a customer key or privileged header. Convex enforces per-IP minute/hour, per-endpoint and global cost buckets before GIS work; FastAPI separately bounds query size, results, timeout, queueing, concurrency and caching. Origin, Referer and User-Agent are not trusted as authorization.
 
 ## Errors
 
@@ -89,7 +89,7 @@ Every non-2xx response has the same envelope:
 { "error": { "code": "INVALID_REQUEST", "message": "…", "details": { "field": "lat" } } }
 ```
 
-Codes: `INVALID_REQUEST` (400), `INVALID_API_KEY` (401), `API_KEY_REVOKED` (403), `NOT_FOUND` (404), `REQUEST_TIMEOUT` (408), `RATE_LIMIT_EXCEEDED` (429), `INTERNAL_ERROR` (500), `UPSTREAM_ERROR` (502), `SERVICE_UNAVAILABLE` (503).
+Codes include `INVALID_REQUEST` (400), `INVALID_API_KEY` (401), `API_KEY_REVOKED`/`ENDPOINT_NOT_ALLOWED` (403), `NOT_FOUND` (404), `REQUEST_TIMEOUT` (408), `RATE_LIMIT_EXCEEDED`/`QUOTA_EXCEEDED` (429), `INTERNAL_ERROR` (500), `UPSTREAM_ERROR` (502), and `SERVICE_UNAVAILABLE` (503).
 
 ## Observability
 

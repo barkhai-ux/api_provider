@@ -17,7 +17,15 @@ from pydantic import BaseModel, ValidationError
 logger = logging.getLogger(__name__)
 
 CredentialKind = Literal["key", "playground"]
-AuthorizationStatus = Literal["ok", "invalid", "expired", "revoked", "rate_limited", "endpoint_not_allowed"]
+AuthorizationStatus = Literal[
+    "ok",
+    "invalid",
+    "expired",
+    "revoked",
+    "rate_limited",
+    "quota_exceeded",
+    "endpoint_not_allowed",
+]
 
 
 class ConvexGatewayError(Exception):
@@ -40,6 +48,11 @@ class RateLimitState(BaseModel):
 class Principal(BaseModel):
     key_id: str
     user_id: str
+    # The current data model treats the developer account as the tenant and an
+    # API key as the application/project credential. These are derived from the
+    # authenticated key; no client-supplied tenant or project id is accepted.
+    tenant_id: str | None = None
+    project_id: str | None = None
     is_site_key: bool = False
     via_playground: bool = False
 
@@ -50,6 +63,11 @@ class Authorization(BaseModel):
     rate_limit: RateLimitState | None = None
     # Set with status "endpoint_not_allowed": the endpoints the key may call.
     allowed_endpoints: list[str] | None = None
+
+
+class DemoAuthorization(BaseModel):
+    status: Literal["ok", "rate_limited"]
+    rate_limit: RateLimitState
 
 
 class KeyDescription(BaseModel):
@@ -92,12 +110,20 @@ class ConvexGateway:
         self._http = http
         self._base = site_url.rstrip("/") + "/gateway"
         self._headers = {"Authorization": f"Bearer {secret}", "Content-Type": "application/json"}
-        self._timeout = timeout_seconds
+        self._http_timeout = httpx.Timeout(
+            connect=min(2.0, timeout_seconds),
+            read=timeout_seconds,
+            write=timeout_seconds,
+            pool=timeout_seconds,
+        )
 
     async def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         try:
             response = await self._http.post(
-                f"{self._base}/{path}", json=body, headers=self._headers, timeout=self._timeout
+                f"{self._base}/{path}",
+                json=body,
+                headers=self._headers,
+                timeout=self._http_timeout,
             )
         except httpx.HTTPError as exc:
             raise ConvexGatewayError(f"Convex request failed ({type(exc).__name__})") from exc
@@ -162,13 +188,41 @@ class ConvexGateway:
         except ValidationError as exc:
             raise ConvexGatewayError("Convex describe response has an unexpected shape") from exc
 
+    async def authorize_demo(
+        self,
+        *,
+        client_ip: str,
+        endpoint: str,
+        cost: int,
+        minute_limit: int,
+        hour_limit: int,
+        global_minute_limit: int,
+    ) -> DemoAuthorization:
+        payload = await self._post(
+            "demo-authorize",
+            {
+                "clientIp": client_ip,
+                "endpoint": endpoint,
+                "cost": cost,
+                "minuteLimit": minute_limit,
+                "hourLimit": hour_limit,
+                "globalMinuteLimit": global_minute_limit,
+            },
+        )
+        try:
+            return DemoAuthorization.model_validate(
+                {"status": payload.get("status"), "rate_limit": payload.get("rateLimit")}
+            )
+        except ValidationError as exc:
+            raise ConvexGatewayError("Convex demo authorization response has an unexpected shape") from exc
+
     async def record_usage(self, records: list[UsageRecord]) -> None:
         await self._post("usage", {"entries": [record.to_json() for record in records]})
 
     async def ping(self) -> bool:
         try:
             response = await self._http.get(
-                f"{self._base}/health", headers=self._headers, timeout=self._timeout
+                f"{self._base}/health", headers=self._headers, timeout=self._http_timeout
             )
         except httpx.HTTPError:
             return False
@@ -181,6 +235,8 @@ def _principal(raw: Any) -> dict[str, Any] | None:
     return {
         "key_id": raw.get("keyId"),
         "user_id": raw.get("userId"),
+        "tenant_id": raw.get("tenantId", raw.get("userId")),
+        "project_id": raw.get("projectId", raw.get("keyId")),
         "is_site_key": bool(raw.get("isSiteKey", False)),
         "via_playground": bool(raw.get("viaPlayground", False)),
     }

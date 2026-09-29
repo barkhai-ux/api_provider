@@ -2,7 +2,11 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
-import { defaultRateLimitPerMinute } from "./lib/env";
+import {
+  defaultRateLimitPerMinute,
+  tenantDailyQuotaUnits,
+  tenantMonthlyQuotaUnits,
+} from "./lib/env";
 import { requireUserId } from "./lib/session";
 import { DAY_MS, utcDay, utcMonthStartDay } from "./lib/time";
 
@@ -37,12 +41,33 @@ export const summary = query({
       .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
     const active = keys.filter((key) => key.revokedAt === undefined);
+    const date = new Date(now);
+    const dayStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    const monthStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+    const [dailyQuota, monthlyQuota] = await Promise.all([
+      ctx.db
+        .query("quotaWindows")
+        .withIndex("by_bucket_period_start", (q) =>
+          q.eq("bucket", `tenant:${userId}`).eq("period", "day").eq("periodStart", dayStart),
+        )
+        .unique(),
+      ctx.db
+        .query("quotaWindows")
+        .withIndex("by_bucket_period_start", (q) =>
+          q.eq("bucket", `tenant:${userId}`).eq("period", "month").eq("periodStart", monthStart),
+        )
+        .unique(),
+    ]);
     return {
       today: todayCounts,
       month: monthCounts,
       rateLimitPerMinute: defaultRateLimitPerMinute(),
       activeKeys: active.length,
       totalKeys: keys.length,
+      quota: {
+        daily: { used: dailyQuota?.units ?? 0, limit: tenantDailyQuotaUnits() },
+        monthly: { used: monthlyQuota?.units ?? 0, limit: tenantMonthlyQuotaUnits() },
+      },
     };
   },
 });

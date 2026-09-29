@@ -150,6 +150,8 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         max_concurrency=settings.arcgis_max_concurrency,
         queue_timeout_seconds=settings.arcgis_queue_timeout_seconds,
         max_response_bytes=settings.arcgis_max_response_bytes,
+        circuit_failure_threshold=settings.arcgis_circuit_failure_threshold,
+        circuit_recovery_seconds=settings.arcgis_circuit_recovery_seconds,
     )
     places_url = (
         resolve_layer_url(settings.arcgis_geocoding_feature_server)

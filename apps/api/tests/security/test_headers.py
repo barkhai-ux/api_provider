@@ -18,6 +18,7 @@ async def test_security_headers_on_api_responses(client: httpx.AsyncClient) -> N
         assert response.headers["X-Content-Type-Options"] == "nosniff"
         assert response.headers["X-Frame-Options"] == "DENY"
         assert response.headers["Referrer-Policy"] == "no-referrer"
+        assert "camera=()" in response.headers["Permissions-Policy"]
         assert "default-src 'none'" in response.headers["Content-Security-Policy"]
         assert response.headers["X-Request-ID"]
     assert (await client.get("/v1/geocode?q=a", headers=auth())).headers["Cache-Control"] == "no-store"
@@ -64,6 +65,17 @@ async def test_cors_allows_only_listed_origins_without_credentials() -> None:
     assert "access-control-allow-credentials" not in allowed.headers
     evil = await _get(app, "/health", {"Origin": "https://evil.example"})
     assert "access-control-allow-origin" not in evil.headers
+
+
+async def test_demo_and_customer_cors_policies_are_independent() -> None:
+    app = _production_app(
+        cors_origins="https://portal.example.com",
+        demo_cors_origins="https://www.example.com",
+    )
+    customer = await _get(app, "/v1/geocode?q=ab", {"Origin": "https://www.example.com"})
+    demo = await _get(app, "/demo/not-found", {"Origin": "https://www.example.com"})
+    assert "access-control-allow-origin" not in customer.headers
+    assert demo.headers["access-control-allow-origin"] == "https://www.example.com"
 
 
 @pytest.mark.parametrize("origins", ["*", "http://app.example.com"])

@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { action, internalMutation, internalQuery, mutation, type MutationCtx, query } from "./_generated/server";
 import { hmacSha256Hex } from "./lib/crypto";
+import { writeAudit } from "./lib/audit";
 import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator, normalizeEndpoints } from "./lib/endpoints";
 import { defaultRateLimitPerMinute, requireEnv } from "./lib/env";
 import {
@@ -117,7 +118,12 @@ export const insertKey = internalMutation({
     if (active.length >= MAX_ACTIVE_KEYS_PER_USER) {
       throw new ConvexError(`You can have at most ${MAX_ACTIVE_KEYS_PER_USER} active API keys. Revoke one first.`);
     }
-    return await ctx.db.insert("apiKeys", args);
+    const keyId = await ctx.db.insert("apiKeys", args);
+    await writeAudit(ctx, "api_key_created", "INFO", "success", {
+      tenantId: args.userId,
+      apiKeyId: keyId,
+    });
+    return keyId;
   },
 });
 
@@ -196,6 +202,10 @@ export const revoke = mutation({
     const key = await requireOwnedKey(ctx, keyId, userId);
     if (key.revokedAt === undefined) await ctx.db.patch(keyId, { revokedAt: Date.now() });
     await deletePlaygroundTokens(ctx, keyId);
+    await writeAudit(ctx, "api_key_revoked", "WARNING", "success", {
+      tenantId: userId,
+      apiKeyId: keyId,
+    });
   },
 });
 
@@ -210,6 +220,10 @@ export const replaceSecret = internalMutation({
     await ctx.db.patch(keyId, { keyPrefix: prefix, keyHash });
     // Tokens issued for the old secret stop working with it.
     await deletePlaygroundTokens(ctx, keyId);
+    await writeAudit(ctx, "api_key_rotated", "WARNING", "success", {
+      tenantId: userId,
+      apiKeyId: keyId,
+    });
   },
 });
 

@@ -6,7 +6,7 @@ No request parameter anywhere in the platform can choose where a server connects
 
 | Server-side caller | Destination | How it is fixed |
 |---|---|---|
-| Website `/api/v1/[endpoint]` | the API | `API_INTERNAL_URL` + one of three allowlisted endpoint names; parameters are validated and re-encoded; `redirect: "error"` |
+| Browser demo | FastAPI `/demo/*` | fixed client paths; FastAPI rejects unknown parameters and never accepts an upstream URL |
 | Website `/api/playground/*`, `/api/session` | Convex | `CONVEX_URL` from the environment |
 | API gateway | Convex | `CONVEX_SITE_URL` + fixed `/gateway/*` paths |
 | API gateway | ArcGIS | `ARCGIS_*` URLs from the environment + fixed REST operations (`suggest`, `findAddressCandidates`, `reverseGeocode`, `solve`, layer `query`) |

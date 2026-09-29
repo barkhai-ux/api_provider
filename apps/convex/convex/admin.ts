@@ -13,6 +13,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { deletePlaygroundTokens } from "./apiKeys";
+import { writeAudit } from "./lib/audit";
 
 export const findUser = internalQuery({
   args: { email: v.string() },
@@ -50,6 +51,10 @@ export const revokeKey = internalMutation({
     if (key === null) throw new Error("No such key.");
     if (key.revokedAt === undefined) await ctx.db.patch(keyId, { revokedAt: Date.now() });
     await deletePlaygroundTokens(ctx, keyId);
+    await writeAudit(ctx, "operator_api_key_revoked", "HIGH", "success", {
+      tenantId: key.userId,
+      apiKeyId: key._id,
+    });
     return { revoked: keyId };
   },
 });
@@ -70,6 +75,7 @@ export const lockUser = internalMutation({
       if (key.revokedAt === undefined) await ctx.db.patch(key._id, { revokedAt: now });
       await deletePlaygroundTokens(ctx, key._id);
     }
+    await writeAudit(ctx, "tenant_disabled", "CRITICAL", "success", { tenantId: userId });
     return { revokedKeys: keys.filter((key) => key.revokedAt === undefined).length };
   },
 });
@@ -99,6 +105,7 @@ export const enableUser = internalMutation({
       .first();
     if (user === null) throw new Error("No user with that email.");
     await ctx.db.patch(user._id, { disabledAt: undefined });
+    await writeAudit(ctx, "tenant_enabled", "HIGH", "success", { tenantId: user._id });
     return { userId: user._id };
   },
 });

@@ -75,7 +75,7 @@ function GeocodeDemo() {
   const [q, setQ] = useState("Ulaanbaatar");
   const mutation = useMutation({
     mutationFn: (query: string) =>
-      run(`GET /v1/geocode?q=${encodeURIComponent(query)}&limit=5`, () => siteGeoClient.geocode({ q: query, limit: 5 })),
+      run(`GET /demo/geocode?q=${encodeURIComponent(query)}&limit=5`, () => siteGeoClient.geocode({ q: query, limit: 5 })),
   });
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
@@ -114,7 +114,7 @@ function RouteDemo() {
   const mutation = useMutation({
     mutationFn: () =>
       run(
-        `GET /v1/route?origin=${origin.trim()}&destination=${destination.trim()}&mode=${mode}`,
+        `GET /demo/route?origin=${origin.trim()}&destination=${destination.trim()}&mode=${mode}`,
         () => siteGeoClient.route({ origin: origin.trim(), destination: destination.trim(), mode }),
         (body: { route: { distance_meters: number; duration_seconds: number } }) =>
           `${formatDistance(body.route.distance_meters)} · ${formatDuration(body.route.duration_seconds)}`,

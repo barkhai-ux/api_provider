@@ -194,7 +194,7 @@ export default async function DevelopersPage() {
             Everything location, behind one API
           </h2>
           <p className="mt-5 text-lg text-muted-foreground">
-            The same endpoints power the map on this site. What you see is what your application gets.
+            The public map uses the same response shapes through a separately limited demo gateway. Customer keys use the authenticated, quota-backed API.
           </p>
         </Reveal>
         <div className="divide-y">

@@ -113,6 +113,37 @@ http.route({
 });
 
 http.route({
+  path: "/gateway/demo-authorize",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    if (!authorized(request)) return json({ error: "unauthorized" }, 401);
+    let body: Record<string, unknown>;
+    try {
+      body = await readJson(request);
+    } catch {
+      return json({ error: "invalid body" }, 400);
+    }
+    const clientIp = typeof body.clientIp === "string" ? body.clientIp.slice(0, 64) : "unknown";
+    const endpoint = typeof body.endpoint === "string" ? body.endpoint.slice(0, 32) : "unknown";
+    const values = [body.cost, body.minuteLimit, body.hourLimit, body.globalMinuteLimit].map(Number);
+    if (values.some((value) => !Number.isFinite(value) || value < 1)) {
+      return json({ error: "invalid body" }, 400);
+    }
+    const [cost, minuteLimit, hourLimit, globalMinuteLimit] = values as [number, number, number, number];
+    return json(
+      await ctx.runMutation(internal.gateway.authorizeDemo, {
+        clientIp,
+        endpoint,
+        cost,
+        minuteLimit,
+        hourLimit,
+        globalMinuteLimit,
+      }),
+    );
+  }),
+});
+
+http.route({
   path: "/gateway/describe",
   method: "POST",
   handler: httpAction(async (ctx, request) => {

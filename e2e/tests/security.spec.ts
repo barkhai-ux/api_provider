@@ -86,13 +86,14 @@ test("the sign-in redirect cannot leave the site", async ({ page }) => {
   expect(page.url()).not.toContain("evil.example");
 });
 
-test("the map proxy is not a general proxy", async ({ request }) => {
-  expect((await request.get("/api/v1/proxy?url=https://example.com")).status()).toBe(404);
-  const extra = await request.get("/api/v1/geocode?q=sukh&url=https://example.com");
+test("the demo API is not a general proxy", async ({ request }) => {
+  const api = (process.env.E2E_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
+  expect((await request.get("/api/v1/geocode?q=sukh")).status()).toBe(404);
+  const extra = await request.get(`${api}/demo/geocode?q=sukh&url=https://example.com`);
   expect(extra.status()).toBe(400);
-  const duplicated = await request.get("/api/v1/geocode?q=sukh&q=other");
+  const duplicated = await request.get(`${api}/demo/geocode?q=sukh&q=other`);
   expect(duplicated.status()).toBe(400);
-  const nan = await request.get("/api/v1/geocode?lat=NaN&lon=106.9");
+  const nan = await request.get(`${api}/demo/reverse?lat=NaN&lon=106.9`);
   expect(nan.status()).toBe(400);
 });
 

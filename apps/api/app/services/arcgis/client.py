@@ -206,11 +206,19 @@ class ArcGISFeatureServerClient:
         max_concurrency: int = 16,
         queue_timeout_seconds: float = 5.0,
         max_response_bytes: int = 32 * 1024 * 1024,
+        circuit_failure_threshold: int = 5,
+        circuit_recovery_seconds: float = 30.0,
     ) -> None:
         self._http = http
         self._token = token
         self._token_provider = token_provider
         self._timeout = timeout_seconds
+        self._http_timeout = httpx.Timeout(
+            connect=min(3.0, timeout_seconds),
+            read=timeout_seconds,
+            write=timeout_seconds,
+            pool=queue_timeout_seconds,
+        )
         self._max_retries = max_retries
         self._max_records = max_records
         self._backoff_base = backoff_base_seconds
@@ -219,6 +227,13 @@ class ArcGISFeatureServerClient:
         self._slots = asyncio.Semaphore(max_concurrency)
         self._queue_timeout = queue_timeout_seconds
         self._max_response_bytes = max_response_bytes
+        self._circuit_failure_threshold = circuit_failure_threshold
+        self._circuit_recovery_seconds = circuit_recovery_seconds
+        self._circuit_state = "closed"
+        self._circuit_failures = 0
+        self._circuit_open_until = 0.0
+        self._circuit_probe_in_flight = False
+        self._circuit_lock = asyncio.Lock()
         self._layer_cache: dict[str, LayerInfo] = {}
         self._layer_locks: dict[str, asyncio.Lock] = {}
 
@@ -394,7 +409,7 @@ class ArcGISFeatureServerClient:
                 data=params if use_post else None,
                 params=None if use_post else params,
                 headers=headers,
-                timeout=self._timeout,
+                timeout=self._http_timeout,
             )
             response = await self._http.send(request, stream=True, follow_redirects=False)
             try:
@@ -431,7 +446,66 @@ class ArcGISFeatureServerClient:
         Network Analyst travel modes)."""
         return await self._request(url, {**params, "f": "json"}, force_post=True)
 
-    async def _request(self, url: str, params: dict[str, str], *, force_post: bool = False) -> dict[str, Any]:
+    async def _circuit_enter(self) -> None:
+        async with self._circuit_lock:
+            now = time.monotonic()
+            if self._circuit_state == "open":
+                if now < self._circuit_open_until:
+                    raise ArcGISUnavailableError("The data service circuit is open")
+                self._circuit_state = "half_open"
+            if self._circuit_state == "half_open":
+                if self._circuit_probe_in_flight:
+                    raise ArcGISUnavailableError("The data service circuit is recovering")
+                self._circuit_probe_in_flight = True
+
+    async def _circuit_succeeded(self) -> None:
+        async with self._circuit_lock:
+            recovered = self._circuit_state != "closed"
+            self._circuit_state = "closed"
+            self._circuit_failures = 0
+            self._circuit_probe_in_flight = False
+            if recovered:
+                logger.info("arcgis_circuit_closed")
+
+    async def _circuit_failed(self) -> None:
+        async with self._circuit_lock:
+            self._circuit_probe_in_flight = False
+            self._circuit_failures += 1
+            if (
+                self._circuit_state == "half_open"
+                or self._circuit_failures >= self._circuit_failure_threshold
+            ):
+                self._circuit_state = "open"
+                self._circuit_open_until = time.monotonic() + self._circuit_recovery_seconds
+                logger.warning(
+                    "arcgis_circuit_opened",
+                    extra={"recovery_seconds": self._circuit_recovery_seconds},
+                )
+
+    async def _request(
+        self, url: str, params: dict[str, str], *, force_post: bool = False
+    ) -> dict[str, Any]:
+        """Execute through a closed/half-open/open circuit breaker.
+
+        Availability failures count; valid ArcGIS error responses prove the
+        upstream is reachable and close a half-open circuit.
+        """
+        await self._circuit_enter()
+        try:
+            result = await self._request_with_retries(url, params, force_post=force_post)
+        except (ArcGISUnavailableError, ArcGISTimeoutError):
+            await self._circuit_failed()
+            raise
+        except ArcGISError:
+            await self._circuit_succeeded()
+            raise
+        else:
+            await self._circuit_succeeded()
+            return result
+
+    async def _request_with_retries(
+        self, url: str, params: dict[str, str], *, force_post: bool = False
+    ) -> dict[str, Any]:
         use_post = (
             force_post or "geometry" in params or len(str(params.get("where", ""))) > MAX_GET_QUERY_LENGTH
         )

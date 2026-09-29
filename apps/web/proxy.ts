@@ -123,6 +123,7 @@ export async function proxy(request: NextRequest, event: NextFetchEvent) {
 }
 
 export const config = {
-  // Everything except static assets and the geo API proxy (which needs no session).
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/v1/|maplibre/|.*\\.(?:png|jpg|jpeg|svg|ico|webp|mjs)$).*)"],
+  // Everything except static assets. The browser demo calls FastAPI /demo
+  // directly, so there is no privileged same-origin geo proxy to exclude.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|maplibre/|.*\\.(?:png|jpg|jpeg|svg|ico|webp|mjs)$).*)"],
 };

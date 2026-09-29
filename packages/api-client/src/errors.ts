@@ -41,6 +41,7 @@ export class GeoApiError extends Error {
   get retryable(): boolean {
     return (
       this.code === "RATE_LIMIT_EXCEEDED" ||
+      this.code === "QUOTA_EXCEEDED" ||
       this.code === "REQUEST_TIMEOUT" ||
       this.code === "UPSTREAM_ERROR" ||
       this.code === "SERVICE_UNAVAILABLE" ||

@@ -2,9 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist_Mono, Manrope } from "next/font/google";
 import { connection } from "next/server";
 import { AppProviders } from "@/components/providers/app-providers";
-import { GeoTokenProvider } from "@/components/providers/geo-token-provider";
 import { I18nProvider } from "@/lib/i18n/provider";
-import { mintGeoToken } from "@/lib/geo-token";
 import { getLocale, getMessages } from "@/lib/i18n/server";
 import { siteConfig } from "@/lib/config";
 import "./globals.css";
@@ -28,8 +26,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   await connection();
   const locale = await getLocale();
   const messages = getMessages(locale);
-  // Per-request token that lets the site's own pages call the map API proxy.
-  const geo = mintGeoToken();
   return (
     <html lang={locale} className={`${manrope.variable} ${geistMono.variable} h-full antialiased`}>
       <body className="min-h-full bg-background font-sans text-foreground">
@@ -40,7 +36,6 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         <I18nProvider locale={locale} messages={messages}>
-          <GeoTokenProvider token={geo.token} expiresAt={geo.expiresAt} />
           <AppProviders>{children}</AppProviders>
         </I18nProvider>
       </body>

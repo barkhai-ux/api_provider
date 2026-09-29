@@ -92,6 +92,30 @@ export default defineSchema({
     .index("by_bucket_window", ["bucket", "windowStart"])
     .index("by_window", ["windowStart"]),
 
+  // Durable cost-unit quotas. Buckets are derived only from the authenticated
+  // key and its owner (tenant), never from ids supplied by a customer.
+  quotaWindows: defineTable({
+    bucket: v.string(),
+    period: v.union(v.literal("day"), v.literal("month")),
+    periodStart: v.number(),
+    units: v.number(),
+  })
+    .index("by_bucket_period_start", ["bucket", "period", "periodStart"])
+    .index("by_period_start", ["periodStart"]),
+
+  // Append-oriented security events. No public query exposes this table.
+  securityAuditEvents: defineTable({
+    event: v.string(),
+    severity: v.union(v.literal("INFO"), v.literal("WARNING"), v.literal("HIGH"), v.literal("CRITICAL")),
+    outcome: v.union(v.literal("success"), v.literal("failure")),
+    tenantId: v.optional(v.id("users")),
+    apiKeyId: v.optional(v.id("apiKeys")),
+    detail: v.optional(v.string()),
+    timestamp: v.number(),
+  })
+    .index("by_time", ["timestamp"])
+    .index("by_tenant_time", ["tenantId", "timestamp"]),
+
   // Short-lived tokens that let the docs playground call /v1 with one of the
   // developer's keys without the key's secret ever reaching the browser.
   playgroundTokens: defineTable({

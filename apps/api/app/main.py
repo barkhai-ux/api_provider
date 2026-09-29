@@ -10,12 +10,11 @@ from typing import Any
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from app import __version__
-from app.api import health, v1
+from app.api import demo, health, v1
 from app.core.abuse import FailureLimiter, TerminalStatusCache, WindowRateLimiter
 from app.core.config import Settings, get_settings
 from app.core.errors import ErrorCode, error_response, register_exception_handlers
@@ -26,6 +25,7 @@ from app.core.middleware import (
     RequestContextMiddleware,
     RequestLimitsMiddleware,
     SecurityHeadersMiddleware,
+    SurfaceCORSMiddleware,
     UnhandledErrorMiddleware,
 )
 from app.core.security import hash_credential
@@ -193,6 +193,10 @@ def create_app(
     app.state.known_bad_credentials = TerminalStatusCache(settings.invalid_key_cache_seconds)
     app.state.key_cache = TTLCache[KeyDescription](settings.auth_cache_ttl_seconds, 50_000)
     app.state.window_limiter = WindowRateLimiter()
+    app.state.demo_semaphore = asyncio.Semaphore(settings.demo_max_concurrency)
+    app.state.demo_geocode_cache = TTLCache[Any](
+        settings.demo_cache_ttl_seconds, settings.demo_cache_max_entries
+    )
     app.state.site_key_hash = (
         hash_credential(settings.site_api_key.get_secret_value(), settings.api_key_pepper.get_secret_value())
         if settings.site_api_key
@@ -202,6 +206,7 @@ def create_app(
     register_exception_handlers(app)
     _geo_error_handlers(app)
     app.include_router(v1.router)
+    app.include_router(demo.router)
     app.include_router(health.router)
     _custom_openapi(app, settings)
 
@@ -219,18 +224,8 @@ def create_app(
     )
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins,
-        allow_methods=["GET", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "X-Request-ID"],
-        expose_headers=[
-            "X-RateLimit-Limit",
-            "X-RateLimit-Remaining",
-            "X-RateLimit-Reset",
-            "Retry-After",
-            "X-Request-ID",
-        ],
-        allow_credentials=False,
-        max_age=600,
+        SurfaceCORSMiddleware,
+        customer_origins=settings.cors_origins,
+        demo_origins=settings.demo_cors_origins,
     )
     return app

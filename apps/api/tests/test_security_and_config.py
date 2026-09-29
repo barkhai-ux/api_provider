@@ -61,6 +61,11 @@ def test_production_accepts_strong_secrets() -> None:
     assert not settings.docs_enabled
 
 
+def test_production_refuses_local_authorization_cache() -> None:
+    with pytest.raises(ValidationError, match="AUTH_CACHE_TTL_SECONDS must be 0"):
+        Settings(_env_file=None, **{**PRODUCTION, "auth_cache_ttl_seconds": 1})  # type: ignore[call-arg, arg-type]
+
+
 def test_development_allows_defaults() -> None:
     settings = Settings(_env_file=None, environment=Environment.DEVELOPMENT)  # type: ignore[call-arg]
     assert settings.api_key_pepper.get_secret_value() == DEV_API_KEY_PEPPER

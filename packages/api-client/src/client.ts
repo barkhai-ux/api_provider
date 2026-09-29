@@ -18,6 +18,8 @@ export interface GeoClientOptions {
   fetch?: typeof fetch;
   /** Extra headers sent with every request. */
   headers?: Record<string, string>;
+  /** Customer API by default; `demo` selects the isolated anonymous surface. */
+  surface?: "customer" | "demo";
 }
 
 export interface RequestOptions {
@@ -72,6 +74,7 @@ export class GeoClient {
   private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly headers: Record<string, string>;
+  private readonly surface: "customer" | "demo";
 
   /** Rate-limit state from the most recent response, if the API sent it. */
   lastRateLimit: RateLimitInfo | undefined;
@@ -82,6 +85,7 @@ export class GeoClient {
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis);
     this.headers = options.headers ?? {};
+    this.surface = options.surface ?? "customer";
   }
 
   /**
@@ -92,7 +96,8 @@ export class GeoClient {
   geocode(params: GeocodeQuery, options?: RequestOptions): Promise<GeocodeResponse> {
     const query: Query =
       "q" in params ? { q: params.q, limit: params.limit } : { lat: params.lat, lon: params.lon };
-    return this.get<GeocodeResponse>("/v1/geocode", query, options);
+    const path = this.surface === "demo" ? ("q" in params ? "/demo/geocode" : "/demo/reverse") : "/v1/geocode";
+    return this.get<GeocodeResponse>(path, query, options);
   }
 
   /** Reverse geocoding convenience wrapper: coordinates to the nearest place. */
@@ -103,7 +108,7 @@ export class GeoClient {
   /** Fastest route between two points for a travel mode (default `driving`). */
   route(params: RouteParams, options?: RequestOptions): Promise<RouteResponse> {
     return this.get<RouteResponse>(
-      "/v1/route",
+      this.surface === "demo" ? "/demo/route" : "/v1/route",
       {
         origin: formatLngLat(params.origin),
         destination: formatLngLat(params.destination),

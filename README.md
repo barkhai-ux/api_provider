@@ -2,7 +2,7 @@
 
 Geocoding, reverse geocoding and routing APIs for Mongolia, with a public map, a developer portal, documentation, an in-browser API playground and a live usage dashboard.
 
-Your ArcGIS FeatureServer layers are the data source, but they stay an internal detail: clients only ever see the platform's own versioned contract at `https://api.YOUR_DOMAIN/v1`. The public map on the website uses that same API.
+Your ArcGIS FeatureServer layers are the data source, but they stay an internal detail. Customer applications use the versioned `/v1` contract; the public map uses an isolated `/demo` gateway with lower independent limits.
 
 ## Contents
 
@@ -31,12 +31,12 @@ flowchart TB
 
     subgraph Web["Next.js website (apps/web)"]
         pages["Map · Developers · Docs · Dashboard"]
-        bff["/api/v1/* proxy<br/>(adds server-only SITE_API_KEY)"]
+        demo["Browser client<br/>(calls public /demo/*)"]
         authproxy["/api/auth (Convex Auth)<br/>/api/session · /api/playground/*"]
     end
 
     subgraph API["Public API gateway (apps/api, FastAPI)"]
-        gw["/v1/geocode · /v1/route"]
+        gw["Customer: /v1/*<br/>Demo: /demo/*"]
         svc["Service layer<br/>GeocodingService · ReverseGeocodingService · RoutingService"]
         adapter["ArcGISFeatureServerClient + providers<br/>(pagination, retries, timeouts, validation)"]
         graph["In-memory road graph + A*"]
@@ -53,7 +53,7 @@ flowchart TB
 
     dev -->|"Bearer geo_…"| gw
     browser --> pages
-    pages --> bff --> gw
+    pages --> demo --> gw
     pages -->|"live queries (dashboard)"| Convex
     pages --> authproxy --> Convex
     gw -->|"/gateway/authorize<br/>/gateway/usage (shared secret)"| Convex
@@ -97,7 +97,7 @@ What each component does:
   To replace ArcGIS, write new provider classes and wire them in `app/services/geo/factory.py`. Endpoints and schemas stay the same.
 - **Convex**: developer accounts (Convex Auth, password + reset codes), API keys (HMAC-peppered hashes only), rate-limit counters, raw usage and daily rollups. The dashboard subscribes to live queries, so usage updates without refresh.
 - **Website** (`apps/web`): Next.js 16 App Router.
-  - The map and the landing-page demo call `/api/v1/*` on the same origin. The Next server forwards those calls to the public API with a key that never reaches the browser.
+  - The map and landing-page demo call FastAPI `/demo/*` directly. The URL is public by design; no customer API key or privileged header is attached, and distributed server-side controls remain effective for curl and automated clients.
   - The API playground calls the public API directly, using a 15-minute playground token for one of the developer's keys.
 
 ## Requirements
@@ -146,7 +146,7 @@ Every variable is documented in [`.env.example`](.env.example). The important on
 **Shared secrets** (must match across services)
 - `API_KEY_PEPPER`: HMAC pepper for API keys (API + Convex).
 - `GATEWAY_SECRET`: protects Convex `/gateway/*` (API + Convex).
-- `SITE_API_KEY`: the website's own key (web + API + Convex).
+- `SITE_API_KEY`: legacy backend/Convex system key; the website demo does not use it.
 
 **Convex**
 - `CONVEX_INSTANCE_SECRET`, `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`
@@ -154,7 +154,7 @@ Every variable is documented in [`.env.example`](.env.example). The important on
 - `USAGE_RETENTION_DAYS`: raw request retention.
 
 **API**
-- `RATE_LIMIT_PER_MINUTE` (default 100), `SITE_KEY_PER_IP_PER_MINUTE`, `CORS_ORIGINS`, `CACHE_GEOCODE_TTL_SECONDS`.
+- `RATE_LIMIT_PER_MINUTE`, `DEMO_REQUESTS_PER_MINUTE`, `DEMO_REQUESTS_PER_HOUR`, customer/demo CORS allowlists, quota limits, and ArcGIS timeout/circuit-breaker limits.
 
 **ArcGIS**
 - `ARCGIS_GEOCODING_FEATURE_SERVER`, `ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER`, `ARCGIS_ROUTING_FEATURE_SERVER`, `ARCGIS_TOKEN`, plus field mappings and routing limits. See below.
@@ -172,6 +172,8 @@ Accounts, keys, usage and rate limits live in a self-hosted [Convex](https://www
 | `apiRequests` | key, user, endpoint, method, status, response time, timestamp | `by_user_time`, `by_key_time`, `by_time` |
 | `usageDaily` | per key/endpoint/UTC-day totals for dashboards | `by_user_day`, `by_key_endpoint_day` |
 | `rateLimitWindows` | fixed one-minute counters per key (or per visitor IP for the site key) | `by_bucket_window`, `by_window` |
+| `quotaWindows` | durable daily/monthly cost-unit counters per key, tenant and endpoint | `by_bucket_window`, `by_window` |
+| `securityAuditEvents` | append-oriented authentication, authorization, key-lifecycle and abuse events | `by_timestamp`, `by_user_time`, `by_key_time` |
 | `playgroundTokens` | 15-minute tokens for the docs playground | `by_token_hash`, `by_expires` |
 
 A cron job prunes expired windows, tokens and old raw requests every 10 minutes.
@@ -187,7 +189,7 @@ A cron job prunes expired windows, tokens and old raw requests every 10 minutes.
    CONVEX_SITE_URL=https://<deployment>.convex.site
    ```
 
-2. Use fresh random values for `API_KEY_PEPPER`, `GATEWAY_SECRET` and `SITE_API_KEY`, and set `SEED_DEMO_ACCOUNT=false`. The deployment is reachable from the internet, so development defaults are unsafe.
+2. Use fresh random values for `API_KEY_PEPPER`, `GATEWAY_SECRET` and `SITE_API_KEY` (if the legacy system key remains enabled), and set `SEED_DEMO_ACCOUNT=false`. The deployment is reachable from the internet, so development defaults are unsafe.
 3. Run `docker compose up --build`. The `convex-deploy` job pushes the functions to the cloud; the local `convex-backend` container stays idle.
 
 Without a deploy key, you can deploy from a machine where `npx convex login` has run:
@@ -319,9 +321,9 @@ For your own servers:
 3. **Email.** Configure password-reset email: `EMAIL_BACKEND=resend`, `RESEND_API_KEY`, `EMAIL_FROM`.
 4. **API.** Serve it at `api.YOUR_DOMAIN`.
    - Set `PUBLIC_API_URL`.
-   - Set `CORS_ORIGINS` to `*`, or to the browser origins you allow.
+   - Set explicit HTTPS `CORS_ORIGINS` and `DEMO_CORS_ORIGINS`; production refuses `*`.
    - Scale by adding containers; each process holds its own road graph, so memory is roughly graph size × processes.
-5. **Web.** Build the image with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CONVEX_URL` build args, and set `API_INTERNAL_URL`, `CONVEX_URL` and `SITE_API_KEY` at runtime.
+5. **Web.** Build the image with production `NEXT_PUBLIC_API_URL` and `NEXT_PUBLIC_CONVEX_URL` build args, and set `API_INTERNAL_URL` and `CONVEX_URL` at runtime.
 6. **Reverse proxy.** Put a reverse proxy in front of the website that **overwrites** `X-Forwarded-For` with the client address, or set `CLIENT_IP_HEADER` to a single-IP header your proxy sets. The per-visitor limit for the public map depends on it.
 7. **Private network.** Keep `/gateway/*` reachable only by the API if you can. It is protected by `GATEWAY_SECRET` either way.
 

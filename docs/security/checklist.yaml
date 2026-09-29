@@ -1,0 +1,36 @@
+version: 1
+reviewed: 2026-09-29
+framework_alignment:
+  - OWASP_API_Security_Top_10
+  - OWASP_ASVS
+  - NIST_CSF
+  - NIST_SSDF
+  - CIS_Controls
+controls:
+  https_enforced: {status: deployment_required, evidence: deploy/nginx/geo-platform.conf}
+  hsts_configured: {status: implemented, evidence: apps/api/app/core/middleware.py}
+  cors_restricted_by_surface: {status: implemented, evidence: apps/api/app/core/middleware.py}
+  api_keys_hashed: {status: implemented, evidence: apps/convex/convex/lib/crypto.ts}
+  api_keys_revocable: {status: implemented, evidence: apps/convex/convex/apiKeys.ts}
+  api_keys_rotatable: {status: implemented, evidence: docs/security/api-security.md}
+  scopes_enforced: {status: implemented, evidence: apps/convex/convex/gateway.ts}
+  tenant_isolation_tested: {status: implemented, evidence: apps/convex/tests/authorization.test.ts}
+  demo_isolated: {status: implemented, evidence: apps/api/app/api/demo.py}
+  distributed_rate_limiting: {status: implemented, evidence: apps/convex/convex/gateway.ts}
+  durable_quotas: {status: implemented, evidence: apps/convex/convex/gateway.ts}
+  request_size_limits: {status: implemented, evidence: apps/api/app/core/middleware.py}
+  ssrf_protection: {status: implemented, evidence: apps/api/app/core/urls.py}
+  upstream_timeouts_and_pools: {status: implemented, evidence: apps/api/app/services/arcgis/client.py}
+  circuit_breaker: {status: implemented, evidence: apps/api/app/services/arcgis/client.py}
+  security_headers: {status: implemented, evidence: apps/web/next.config.ts}
+  structured_redacted_logs: {status: implemented, evidence: apps/api/app/core/logging.py}
+  security_audit_log: {status: implemented, evidence: apps/convex/convex/schema.ts}
+  dependency_scan: {status: implemented, evidence: .github/workflows/security.yml}
+  secret_scan: {status: implemented, evidence: .github/workflows/security.yml}
+  sast: {status: implemented, evidence: .github/workflows/security.yml}
+  dast: {status: documented, evidence: docs/security/penetration-testing.md}
+  monitoring_alerts: {status: deployment_required, evidence: docs/security/deployment-hardening.md}
+  backup_restore_test: {status: deployment_required, evidence: docs/security/deployment-hardening.md}
+  incident_response: {status: implemented, evidence: docs/security/incident-response.md}
+  arcgis_least_privilege_credential: {status: blocked_external, evidence: SECURITY_REPORT.md#remaining-risks}
+  credential_rotation_after_prior_exposure: {status: blocked_external, evidence: SECURITY_REPORT.md#remaining-risks}

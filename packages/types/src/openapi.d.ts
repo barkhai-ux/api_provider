@@ -94,7 +94,7 @@ export interface components {
              * @description Stable, machine-readable error code.
              * @enum {string}
              */
-            code: "INVALID_REQUEST" | "INVALID_API_KEY" | "API_KEY_REVOKED" | "ENDPOINT_NOT_ALLOWED" | "NOT_FOUND" | "REQUEST_TIMEOUT" | "RATE_LIMIT_EXCEEDED" | "INTERNAL_ERROR" | "UPSTREAM_ERROR" | "SERVICE_UNAVAILABLE";
+            code: "INVALID_REQUEST" | "INVALID_API_KEY" | "API_KEY_REVOKED" | "ENDPOINT_NOT_ALLOWED" | "NOT_FOUND" | "REQUEST_TIMEOUT" | "RATE_LIMIT_EXCEEDED" | "QUOTA_EXCEEDED" | "INTERNAL_ERROR" | "UPSTREAM_ERROR" | "SERVICE_UNAVAILABLE";
             /**
              * Message
              * @description Human-readable explanation. Wording may change; do not parse it.
@@ -388,7 +388,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description 429 RATE_LIMIT_EXCEEDED */
+            /** @description 429 RATE_LIMIT_EXCEEDED or QUOTA_EXCEEDED */
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -571,7 +571,7 @@ export interface operations {
                     "application/json": components["schemas"]["ErrorResponse"];
                 };
             };
-            /** @description 429 RATE_LIMIT_EXCEEDED */
+            /** @description 429 RATE_LIMIT_EXCEEDED or QUOTA_EXCEEDED */
             429: {
                 headers: {
                     [name: string]: unknown;

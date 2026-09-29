@@ -1,21 +1,21 @@
 # Security report
 
-Review of the Geo Platform monorepo (`apps/web`, `apps/api`, `apps/convex`, `packages/*`, Dockerfiles, `docker-compose.yml`, `render.yaml`) on 2026-09-24. Method: manual code review of every trust boundary, targeted probes against a local instance with mocked upstreams, dependency/secret/container/static scanners, an OWASP ZAP baseline scan, and nmap/ffuf reconnaissance of the local stack (2026-09-24/25). No production system and no ArcGIS service was attacked.
+Review of the Geo Platform monorepo (`apps/web`, `apps/api`, `apps/convex`, `packages/*`, Dockerfiles, `docker-compose.yml`, `render.yaml`) through 2026-09-29. Method: manual code review of every trust boundary, targeted probes against a local instance with mocked upstreams, dependency/secret/container/static scanners, an OWASP ZAP baseline scan, and nmap/ffuf reconnaissance of the local stack. No production system and no ArcGIS service was attacked.
 
 Passing scanners shows what the scanners cover, not that the system is secure. The residual risks at the end are real and need decisions.
 
 ## Executive summary
 
+- **The original browser-discoverable endpoint is intentionally still discoverable.** The browser now calls FastAPI `/demo/geocode`, `/demo/reverse` and `/demo/route` directly with no customer or ArcGIS credential. Those operations have their own distributed per-IP minute/hour, per-endpoint and global cost limits, smaller result/input/deadline/concurrency budgets and isolated cache policy. Calling them with curl, Postman, forged headers or a different User-Agent does not remove those controls.
+- **Customer authorization is centralized and fail-closed.** Convex resolves API key → account/tenant → key/project → endpoint scope → minute limits → daily/monthly cost quotas. Production refuses the local authorization cache, so revocation, expiry, suspension, scopes and shared quotas take effect on the next request.
+- **Upstream failure containment is stronger.** ArcGIS calls use explicit connect/read/write/pool timeouts, bounded pools/queues/concurrency/response bytes, no redirects, retry allowlists and a closed/open/half-open circuit breaker.
+- **Auditability was added.** Append-oriented security audit records cover key lifecycle, authentication, authorization, rate/quota violations and administrative actions. Request logs carry derived tenant/project/key ids, trusted source address, request id and limit result without credentials or query strings.
+- **All new local verification passes:** FastAPI 230 tests; Convex 34; web 58; TypeScript client 7; strict TypeScript type checks; ESLint; Ruff; mypy; `npm audit` and `pip-audit` (zero known vulnerabilities). A production Webpack build passed. Turbopack compilation could not be verified in this execution sandbox because its worker attempted a prohibited local port bind; this is an environment limitation, not a successful build result.
 - **1 high-severity code finding, fixed:** anyone could register the reserved system address before the first deploy and take ownership of the website's site key (H1).
 - **2 high-severity operational findings, open:** production-grade credentials were exposed outside secret storage during setup (H2), and the ArcGIS credential used for routing has portal administrator privileges (H3). Both need action in the ArcGIS portal and the secret stores, not code.
 - **14 medium findings, all fixed or mitigated.** They cover the open redirect after sign-in and the lack of a script CSP. They also cover spoofable visitor addresses, trust in gateway input, and missing pre-authentication throttling. The rest are denial-of-service vectors in parameter parsing and upstream fan-out, weak configuration guards, and base images with critical CVEs.
 - **24 low findings plus informational notes:** most are fixed; the rest are documented as residual risks.
-- **Regression tests added:**
-  - API: 92 new tests (`apps/api/tests/security`, 213 in total).
-  - Convex: 30 new tests (`convex-test`: IDOR, sessions, gateway, accounts).
-  - Web: 9 new unit tests (64 in total).
-  - E2E: 5 new security tests (32 in total).
-- **All suites and scanners pass:**
+- **Earlier review suites and scanners:**
   - npm audit, pip-audit and OSV-Scanner: 0 vulnerabilities.
   - Semgrep: 0 findings; Bandit: 0 at medium severity or above.
   - gitleaks: 0 leaks in history or in the commit set.
@@ -24,11 +24,10 @@ Passing scanners shows what the scanners cover, not that the system is secure. T
 ## Architecture reviewed
 
 ```text
-Internet ─► (Render edge / nginx) ─► Next.js 16 ─► FastAPI /v1 ─► Convex HTTP actions (keys, limits, usage)
-                                        │   site key      │  hash only
-                                        │   server-side   └─► ArcGIS GeocodeServer / NAServer (server-side token)
-                                        └─► Convex (Convex Auth sessions, dashboard data)
-Developers' servers ─► FastAPI /v1 (Bearer API key)
+Browser ─► (edge/WAF) ─► FastAPI /demo/* ─┐
+Developer systems ────► FastAPI /v1/* ───┼─► ArcGIS adapter ─► ArcGIS Enterprise
+                                         └─► Convex gateway (keys, scopes, limits, quotas, usage, audit)
+Browser ─► Next.js 16 ─► Convex Auth (developer portal and dashboard)
 ```
 
 Trust boundaries, assets and actors: [docs/security/threat-model.md](docs/security/threat-model.md).
@@ -37,8 +36,8 @@ Trust boundaries, assets and actors: [docs/security/threat-model.md](docs/securi
 
 | Surface | Exposure | Entry points |
 |---|---|---|
-| Website | Public | Pages; `GET /api/v1/{geocode,reverse-geocode,route}` (anonymous, site key); `POST /api/auth`; `POST /api/playground/token`, `GET /api/playground/keys`, `GET /api/session` (session) |
-| Public API | Public | `GET /v1/geocode`, `/v1/reverse-geocode`, `/v1/route` (Bearer key); `/health`, `/health/ready`, `/openapi.json`; `/docs`, `/redoc` (now off in production) |
+| Website | Public | Pages; `POST /api/auth`; `POST /api/playground/token`, `GET /api/playground/keys`, `GET /api/session` (session) |
+| Public API | Public | Anonymous `GET /demo/{geocode,reverse,route}`; customer `GET /v1/{geocode,route}` (Bearer key); minimal health/readiness/liveness; `/openapi.json`; `/docs`, `/redoc` off in production by default |
 | Convex | Public (Convex Cloud) | Public functions (session required), Convex Auth actions (`auth:signIn`, `auth:signOut`), `/gateway/*` HTTP actions (gateway secret) |
 | ArcGIS | Outbound only | Configured locator, route service, token endpoint |
 | Hosts and containers | Operators | Render dashboard, Convex dashboard/CLI, SSH (self-hosted) |
@@ -136,17 +135,36 @@ How each was confirmed: M6 and M7 were measured with probes against the API in-p
 
 ## Evidence
 
-### Tests (all passing)
+### Tests
 
 | Suite | Count | Command |
 |---|---|---|
-| API (pytest, includes `tests/security`) | 213 | `cd apps/api && uv run pytest` |
-| Convex (`convex-test`) | 30 | `npm test --workspace @geo-platform/convex` |
-| Website (Vitest) | 64 | `npm test --workspace @geo-platform/web` |
-| API client | 6 | `npm test --workspace @geo-platform/api-client` |
-| End-to-end (Playwright, hardened containers) | 32 | `npx playwright test --config e2e/playwright.config.ts` |
+| API (pytest, includes `tests/security`) | 230 passing | `cd apps/api && uv run pytest` |
+| Convex (`convex-test`) | 34 passing | `npm test --workspace @geo-platform/convex` |
+| Website (Vitest) | 58 passing | `npm test --workspace @geo-platform/web` |
+| API client | 7 passing | `npm test --workspace @geo-platform/api-client` |
+| End-to-end (Playwright, hardened containers) | 32 passed in the prior 2026-09-25 run; not rerun in this increment | `npx playwright test --config e2e/playwright.config.ts` |
 
-Type checks (TypeScript, mypy) and linters (ESLint, Ruff) are clean.
+Type checks (TypeScript, mypy) and linters (ESLint, Ruff) are clean. The
+production Webpack build passed. The default Turbopack build reached
+compilation but the execution sandbox prohibited its internal worker from
+binding a local port, so that variant remains to be confirmed in CI.
+
+### 2026-09-29 external-attacker review
+
+| Attempt | Result / evidence |
+|---|---|
+| Call the browser-visible demo with curl semantics, missing/forged Origin and a different User-Agent | Request remains anonymous and is charged to the same server-side demo buckets; limit produces 429 + `Retry-After` (`test_demo.py`) |
+| Reuse the demo path as the customer API | Impossible: `/demo` accepts only three fixed operations, smaller limits and no customer principal; `/v1` still requires a bearer key |
+| Put a key in a query string, duplicate auth headers, alter prefix/length/Unicode | 400/401 before Convex or GIS work (`test_auth.py`) |
+| Use expired/revoked/unknown credentials or a key with the wrong scope | 401/403, audited, no GIS work (`test_auth.py`, `gateway.test.ts`) |
+| Exceed per-key, tenant, endpoint, global or daily/monthly cost limits | 429 with reset metadata; durable quotas are not client-controlled (`test_rate_limits.py`, `gateway.test.ts`) |
+| Supply another tenant's key/resource id | Ownership joins start from the active session/key; cross-tenant tests fail closed (`authorization.test.ts`) |
+| Add `url=http://127.0.0.1` or metadata/private targets | Unknown parameter rejected before auth/demo work; configured upstream URL validation rejects unsafe destinations (`test_input_validation.py`, `test_ssrf.py`) |
+| Send NaN, huge text, duplicate/flooded parameters, oversized headers/body, malformed route geometry | 400/413/414/431 before expensive work (`test_input_validation.py`) |
+| Stall or fail ArcGIS | Explicit deadlines, bounded response/concurrency, retry rules and open/half-open circuit fail fast (`test_arcgis_client.py`, `test_ssrf.py`) |
+| Reach removed same-origin map proxy or an administrative API | No website geo proxy route exists in the production build; admin Convex functions remain internal |
+| Search the production browser bundle for secret variable names / public source maps | No matches and no production `.map` files found in `.next/static` |
 
 ### Scanners
 
@@ -203,9 +221,9 @@ Run against the local stack (dev mode; ArcGIS pointed at the self-hosted server)
 | Duplicate query parameter | 400 before auth |
 | SSRF via `url=`/`target=` (metadata, loopback) | rejected (unknown parameter / 404 for `/proxy`) |
 | Method tampering (POST/PUT/DELETE/PATCH on `/v1/geocode`) | 405 |
-| Duplicate `Authorization`, key in query string, malformed key | 401, no Convex lookup |
+| Duplicate `Authorization`, key in query string, malformed key | 400/401, no Convex lookup |
 | Pre-auth flood: 70 distinct well-formed unknown keys | 60 × 401, then 429 with `Retry-After`; 0 ArcGIS calls |
-| Per-visitor rate limit via the site proxy: 65 valid searches | cut off at 60, then 429 |
+| Per-visitor rate limit (historical site-proxy design): 65 valid searches | cut off at 60, then 429; the current browser calls `/demo` directly and uses its minute/hour/global limits |
 | Injection in `q` (SQL `' OR '1'='1`, `DROP TABLE`, UNION; NoSQL `{$gt:''}`; XSS `<script>`, `<img onerror>`; log4shell `${jndi:...}`; path `../../etc/passwd`; Cyrillic + quote) | all 200 with clean JSON, no 500, no traceback/URL/SQL/pydantic text; response `content-type: application/json` (XSS inert) |
 | Route request | 502 `UPSTREAM_ERROR` (the pre-existing ArcGIS routing-permission block), clean envelope with `request_id`, no upstream detail leaked |
 | ffuf (`common.txt`) on `/`, `/api/`, API `/`, `/v1/` | only public pages and known API paths; `.git/…`, `cgi-bin/` are 308→404 artifacts |
@@ -249,7 +267,10 @@ No new vulnerability. The route 502 is the known ArcGIS portal-permission gap (H
 - **XSS impact:** the Convex Auth library keeps the access JWT in `localStorage`, so the nonce CSP is the main barrier against script injection.
 - **DNS:** configured upstream host names are not pinned. A DNS hijack could redirect gateway traffic; restrict egress on self-hosted hosts.
 - **Per-instance limits:** in-memory limits are per instance. Scaling out multiplies them; Convex-backed limits are shared.
-- **Authorization cache (`AUTH_CACHE_TTL_SECONDS`, default 15s):** when enabled, a valid API key's limits and scopes are cached in the API and rate limiting is enforced locally, to skip the ~250ms Convex round-trip. Trade-offs: revocation, expiry and account-disable take effect within the TTL (not instantly), and rate limits become per API instance. Rate limiting stays exact per instance (every request is counted; only the key's static metadata is cached). The negative (known-bad) cache, pre-auth failed-attempt limiter, key hashing and playground-token handling are unchanged; playground tokens are never cached. Set `0` for instant revocation, or keep it small when running more than one instance. Convex remains the source of truth.
+- **Authorization cache:** production refuses `AUTH_CACHE_TTL_SECONDS > 0`; test/development may explicitly enable it to exercise legacy behavior. The negative known-bad cache and pre-auth failed-attempt limiter remain bounded and per instance.
+- **Distributed demo abuse:** per-address controls cannot by themselves stop a sufficiently distributed botnet. Edge DDoS/WAF capacity, IP reputation and anomaly alerting remain deployment responsibilities.
+- **Quota model:** the current account is the tenant and an API key is the project/application credential. Multi-member organizations require explicit membership/project tables before launch of that feature.
+- **Limiter algorithm:** fixed windows can allow a boundary burst approaching twice the nominal rate. Edge smoothing or a Redis/token-bucket tier is recommended where that burst profile is unacceptable.
 - **Not verified on the target platforms:**
   - The Render edge headers and limits.
   - The RHEL host configuration on a real host (nginx, Quadlet and systemd files are syntax- and policy-checked only).

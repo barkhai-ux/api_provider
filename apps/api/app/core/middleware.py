@@ -8,6 +8,7 @@ CORS -> RequestContext -> RequestLimits -> SecurityHeaders -> BodySizeLimit -> A
 
 from __future__ import annotations
 
+import ipaddress
 import logging
 import re
 import time
@@ -16,6 +17,7 @@ from typing import Any
 from urllib.parse import parse_qsl
 
 from starlette.datastructures import MutableHeaders
+from starlette.middleware.cors import CORSMiddleware
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.core.errors import ErrorCode, error_response
@@ -27,12 +29,68 @@ logger = logging.getLogger("app.access")
 
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
 PUBLIC_API_PREFIX = "/v1/"
+DEMO_API_PREFIX = "/demo/"
 DOCS_PATHS = ("/docs", "/redoc")
+QUERY_ALLOWLISTS = {
+    "/v1/geocode": frozenset({"q", "lat", "lon", "limit"}),
+    "/v1/route": frozenset({"origin", "destination", "mode"}),
+    "/demo/geocode": frozenset({"q", "limit"}),
+    "/demo/reverse": frozenset({"lat", "lon"}),
+    "/demo/route": frozenset({"origin", "destination", "mode"}),
+}
 
 
 def _state(scope: Scope) -> dict[str, Any]:
     state: dict[str, Any] = scope.setdefault("state", {})
     return state
+
+
+class SurfaceCORSMiddleware:
+    """Use independent browser-origin policies for customer and demo APIs.
+
+    CORS remains a browser control, never authentication. Non-browser clients
+    and requests without Origin continue to reach the real authentication and
+    abuse controls.
+    """
+
+    def __init__(
+        self,
+        app: ASGIApp,
+        *,
+        customer_origins: list[str],
+        demo_origins: list[str],
+    ) -> None:
+        methods = ["GET", "OPTIONS"]
+        headers = ["Authorization", "Content-Type", "X-Request-ID"]
+        exposed = [
+            "X-RateLimit-Limit",
+            "X-RateLimit-Remaining",
+            "X-RateLimit-Reset",
+            "Retry-After",
+            "X-Request-ID",
+        ]
+        self.customer = CORSMiddleware(
+            app,
+            allow_origins=customer_origins,
+            allow_methods=methods,
+            allow_headers=headers,
+            expose_headers=exposed,
+            allow_credentials=False,
+            max_age=600,
+        )
+        self.demo = CORSMiddleware(
+            app,
+            allow_origins=demo_origins,
+            allow_methods=methods,
+            allow_headers=headers,
+            expose_headers=exposed,
+            allow_credentials=False,
+            max_age=600,
+        )
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        target = self.demo if scope.get("path", "").startswith(DEMO_API_PREFIX) else self.customer
+        await target(scope, receive, send)
 
 
 class RequestContextMiddleware:
@@ -63,6 +121,21 @@ class RequestContextMiddleware:
             await self.app(scope, receive, send_wrapper)
         finally:
             principal = _state(scope).get("principal")
+            settings = scope["app"].state.settings
+            raw_ip = ""
+            if settings.client_ip_header:
+                raw_ip = dict(scope["headers"]).get(
+                    settings.client_ip_header.lower().encode("ascii"), b""
+                ).decode("latin-1")
+            elif scope.get("client"):
+                raw_ip = str(scope["client"][0])
+            try:
+                source_ip: str | None = str(ipaddress.ip_address(raw_ip.strip()))
+            except ValueError:
+                source_ip = None
+            user_agent = dict(scope["headers"]).get(b"user-agent", b"").decode(
+                "latin-1"
+            )[:256]
             logger.info(
                 "request",
                 extra={
@@ -71,6 +144,14 @@ class RequestContextMiddleware:
                     "status": status_code,
                     "response_time_ms": round((time.perf_counter() - started) * 1000, 1),
                     "api_key_id": principal.key_id if isinstance(principal, Principal) else None,
+                    "tenant_id": principal.tenant_id if isinstance(principal, Principal) else None,
+                    "project_id": principal.project_id if isinstance(principal, Principal) else None,
+                    "source_ip": source_ip,
+                    "user_agent": user_agent,
+                    "scope": scope["path"].removeprefix(PUBLIC_API_PREFIX)
+                    if scope["path"].startswith(PUBLIC_API_PREFIX)
+                    else None,
+                    "rate_limit_result": "denied" if status_code == 429 else "allowed",
                 },
             )
             request_id_var.reset(token)
@@ -110,7 +191,7 @@ class RequestLimitsMiddleware:
         query: bytes = scope.get("query_string", b"")
         if len(query) > self.max_query_bytes:
             return 414, "The query string is too long.", None
-        if scope["path"].startswith(PUBLIC_API_PREFIX) and query:
+        if scope["path"].startswith((PUBLIC_API_PREFIX, DEMO_API_PREFIX)) and query:
             try:
                 pairs = parse_qsl(
                     query.decode("latin-1"), keep_blank_values=True, max_num_fields=self.max_query_params
@@ -118,9 +199,12 @@ class RequestLimitsMiddleware:
             except ValueError:
                 return 400, f"Too many query parameters (at most {self.max_query_params}).", None
             seen: set[str] = set()
+            allowed = QUERY_ALLOWLISTS.get(scope["path"])
             for name, _ in pairs:
                 if name in seen:
                     return 400, f"Parameter '{name[:40]}' must appear only once.", {"field": name[:40]}
+                if allowed is not None and name not in allowed:
+                    return 400, f"Parameter '{name[:40]}' is not supported.", {"field": name[:40]}
                 seen.add(name)
         return None
 
@@ -154,6 +238,10 @@ class SecurityHeadersMiddleware:
                 headers.setdefault("X-Content-Type-Options", "nosniff")
                 headers.setdefault("Referrer-Policy", "no-referrer")
                 headers.setdefault("X-Frame-Options", "DENY")
+                headers.setdefault(
+                    "Permissions-Policy",
+                    "geolocation=(), camera=(), microphone=(), payment=(), usb=()",
+                )
                 if self.hsts:
                     headers.setdefault("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
                 if not is_docs:
@@ -161,7 +249,7 @@ class SecurityHeadersMiddleware:
                     headers.setdefault(
                         "Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'"
                     )
-                if scope["path"].startswith(PUBLIC_API_PREFIX):
+                if scope["path"].startswith((PUBLIC_API_PREFIX, DEMO_API_PREFIX)):
                     headers.setdefault("Cache-Control", "no-store")
             await send(message)
 
@@ -225,7 +313,7 @@ class ApiMeteringMiddleware:
         self.recorder = recorder
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
-        if scope["type"] != "http" or not scope["path"].startswith(PUBLIC_API_PREFIX):
+        if scope["type"] != "http" or not scope["path"].startswith((PUBLIC_API_PREFIX, DEMO_API_PREFIX)):
             await self.app(scope, receive, send)
             return
         started = time.perf_counter()

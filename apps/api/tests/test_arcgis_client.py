@@ -1,3 +1,5 @@
+import asyncio
+
 import httpx
 import pytest
 import respx
@@ -115,6 +117,27 @@ async def test_retries_give_up_with_unavailable_error(router: respx.MockRouter) 
     with pytest.raises(ArcGISUnavailableError):
         await make_client(max_retries=1).query(LAYER)
     assert route.call_count == 2
+
+
+async def test_circuit_breaker_fails_fast_then_recovers(router: respx.MockRouter) -> None:
+    route = router.get(f"{LAYER}/query").mock(
+        side_effect=[httpx.Response(503), httpx.Response(503), httpx.Response(200, json=feature_set([]))]
+    )
+    client = make_client(
+        max_retries=0,
+        circuit_failure_threshold=2,
+        circuit_recovery_seconds=0.01,
+    )
+    for _ in range(2):
+        with pytest.raises(ArcGISUnavailableError):
+            await client.query(LAYER)
+    # Open circuit: no third network request.
+    with pytest.raises(ArcGISUnavailableError, match="circuit"):
+        await client.query(LAYER)
+    assert route.call_count == 2
+    await asyncio.sleep(0.02)
+    assert (await client.query(LAYER)).features == []
+    assert route.call_count == 3
 
 
 async def test_read_timeouts_fail_fast_without_retry(router: respx.MockRouter) -> None:

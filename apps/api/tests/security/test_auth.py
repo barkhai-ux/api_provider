@@ -37,7 +37,8 @@ async def test_manipulated_keys_are_refused_without_a_lookup(
 
 async def test_key_in_the_query_string_is_not_accepted(client: httpx.AsyncClient, convex: ConvexFake) -> None:
     response = await client.get("/v1/geocode", params={"q": "sukh", "api_key": DEMO_KEY})
-    assert response.status_code == 401
+    assert response.status_code == 400
+    assert response.json()["error"]["details"] == {"field": "api_key"}
     assert convex.authorize_calls == []
 
 

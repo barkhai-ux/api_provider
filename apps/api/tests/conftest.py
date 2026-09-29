@@ -123,6 +123,7 @@ class ConvexFake:
     usage: list[dict[str, Any]] = field(default_factory=list)
     authorize_calls: list[dict[str, Any]] = field(default_factory=list)
     describe_calls: list[dict[str, Any]] = field(default_factory=list)
+    demo_calls: list[dict[str, Any]] = field(default_factory=list)
     down: bool = False
 
     def add_key(
@@ -163,6 +164,15 @@ class ConvexFake:
             "isSiteKey": key["site"],
             "viaPlayground": data["kind"] == "playground",
         }
+        if key["status"] == "quota_exceeded":
+            return httpx.Response(
+                200,
+                json={
+                    "status": "quota_exceeded",
+                    "principal": principal,
+                    "rateLimit": {"limit": 10, "remaining": 0, "reset": int(time.time()) + 3600},
+                },
+            )
         if key["endpoints"] is not None and data.get("endpoint") not in key["endpoints"]:
             return httpx.Response(
                 200,
@@ -214,6 +224,26 @@ class ConvexFake:
             },
         )
 
+    def authorize_demo(self, request: httpx.Request) -> httpx.Response:
+        if self.down:
+            raise httpx.ConnectError("convex down")
+        if request.headers.get("Authorization") != f"Bearer {GATEWAY_SECRET}":
+            return httpx.Response(401, json={"error": "unauthorized"})
+        data = json.loads(request.content)
+        self.demo_calls.append(data)
+        bucket = f"demo:{data['clientIp']}"
+        self.counts[bucket] = self.counts.get(bucket, 0) + data["cost"]
+        count = self.counts[bucket]
+        limit = data["minuteLimit"]
+        reset = (int(time.time()) // 60 + 1) * 60
+        return httpx.Response(
+            200,
+            json={
+                "status": "ok" if count <= limit else "rate_limited",
+                "rateLimit": {"limit": limit, "remaining": max(0, limit - count), "reset": reset},
+            },
+        )
+
     def record_usage(self, request: httpx.Request) -> httpx.Response:
         if self.down:
             raise httpx.ConnectError("convex down")
@@ -261,6 +291,7 @@ def mock_router(convex: ConvexFake) -> Iterator[respx.MockRouter]:
     with respx.mock(assert_all_called=False, assert_all_mocked=True) as router:
         router.post(f"{CONVEX_URL}/gateway/authorize").mock(side_effect=convex.authorize)
         router.post(f"{CONVEX_URL}/gateway/describe").mock(side_effect=convex.describe)
+        router.post(f"{CONVEX_URL}/gateway/demo-authorize").mock(side_effect=convex.authorize_demo)
         router.post(f"{CONVEX_URL}/gateway/usage").mock(side_effect=convex.record_usage)
         router.get(f"{CONVEX_URL}/gateway/health").mock(
             return_value=httpx.Response(200, json={"status": "ok"})

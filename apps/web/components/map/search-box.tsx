@@ -35,7 +35,7 @@ function errorMessage(error: unknown): string {
 
 /**
  * Place search combobox (WAI-ARIA 1.2 pattern). Requests are debounced and
- * stale requests are cancelled; results come from GET /v1/geocode.
+ * stale requests are cancelled; public-map results come from GET /demo/geocode.
  */
 export function SearchBox({
   label,

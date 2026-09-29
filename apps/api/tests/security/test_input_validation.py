@@ -44,6 +44,22 @@ async def test_duplicated_parameters_are_ambiguous_and_refused(
     assert convex.authorize_calls == []
 
 
+async def test_unknown_parameters_are_refused_before_authentication_or_demo_work(
+    client: httpx.AsyncClient, convex: ConvexFake
+) -> None:
+    customer = await client.get(
+        "/v1/geocode", params={"q": "sukh", "url": "http://169.254.169.254/"}, headers=auth()
+    )
+    demo = await client.get(
+        "/demo/geocode", params={"q": "sukh", "url": "http://127.0.0.1/"}
+    )
+    assert customer.status_code == 400
+    assert demo.status_code == 400
+    assert customer.json()["error"]["details"] == {"field": "url"}
+    assert convex.authorize_calls == []
+    assert convex.demo_calls == []
+
+
 async def test_parameter_floods_are_refused_cheaply(client: httpx.AsyncClient, convex: ConvexFake) -> None:
     many = "&".join(f"p{i}=1" for i in range(200))
     response = await client.get(f"/v1/geocode?q=sukh&{many}", headers=auth())

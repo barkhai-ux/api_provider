@@ -43,11 +43,14 @@ npx convex env remove --prod GATEWAY_SECRET_PREVIOUS                 # once the 
 
 If the secret leaked, remove `GATEWAY_SECRET_PREVIOUS` as soon as the API is updated, and review Convex logs for `/gateway/*` calls that did not come from the API.
 
-## SITE_API_KEY leaked
+## Legacy SITE_API_KEY leaked
+
+The current website demo does not use this key. Rotate it if it remains
+registered for another integration:
 
 1. `node scripts/generate-secrets.mjs` and take the new `SITE_API_KEY`.
 2. `npx convex env set --prod SITE_API_KEY -- "<new>"` and `npx convex run --prod platform:ensureSiteKey` (registers the new key and revokes the old one immediately).
-3. Update `SITE_API_KEY` on both Render services and redeploy them. The map is unavailable between step 2 and step 3, so do them together.
+3. Update `SITE_API_KEY` on any remaining caller/API configuration and redeploy.
 
 ## API_KEY_PEPPER leaked
 
@@ -68,9 +71,9 @@ Revoke it in the Convex dashboard (Settings → Deploy keys), create a new one, 
 
 ## Investigating suspicious requests
 
-- API logs are JSON lines: `request_id`, `method`, `endpoint`, `status`, `response_time_ms`, `api_key_id`. Filter by the request id a developer quotes, or by `api_key_id`.
-- Signals: bursts of 401 (key guessing; the per-IP failure limit answers 429 after 60 failures a minute), 403 `ENDPOINT_NOT_ALLOWED` or `API_KEY_REVOKED` (stolen or old keys still in use), 429 on one key or account, 502/503 (ArcGIS trouble).
-- Convex: `apiRequests` has endpoint, status, timing and key per request (30 days); `usageDaily` has daily totals. `admin:findUser` shows a user's keys and their last use.
+- API logs are JSON lines with `request_id`, method/path, status, latency, key/tenant/project ids, trusted source address, bounded User-Agent and limit result.
+- Signals: bursts of 401, 403 scope/revocation failures, rate/quota 429s, demo global pressure, route-heavy traffic, ArcGIS 5xx/latency and circuit-open events.
+- Convex: `apiRequests` has endpoint/status/timing/key, `usageDaily` has aggregates, `quotaWindows` enforces usage, and append-oriented `securityAuditEvents` records key/auth/scope/rate/quota events. None stores secrets or raw demo IPs.
 - Query strings, bodies and credentials are never logged or stored, so what was searched cannot be reconstructed (by design).
 
 ## Restoring service
