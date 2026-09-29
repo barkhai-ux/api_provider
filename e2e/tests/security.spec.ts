@@ -84,6 +84,9 @@ test("the sign-in redirect cannot leave the site", async ({ page }) => {
   await page.getByRole("button", { name: "Create account" }).click();
   await expect(page).toHaveURL(/\/dashboard/);
   expect(page.url()).not.toContain("evil.example");
+  expect(
+    await page.evaluate(() => Object.keys(localStorage).filter((key) => key.startsWith("__convexAuth"))),
+  ).toEqual([]);
 });
 
 test("the demo API is not a general proxy", async ({ request }) => {
@@ -101,4 +104,20 @@ test("the API refuses ambiguous requests before authentication", async ({ reques
   const api = (process.env.E2E_API_URL ?? "http://localhost:8000").replace(/\/+$/, "");
   expect((await request.get(`${api}/v1/geocode?q=ab&q=cd`)).status()).toBe(400);
   expect((await request.get(`${api}/v1/geocode?q=${"x".repeat(3000)}`)).status()).toBe(414);
+});
+
+test("the auth endpoint rejects cross-origin and malformed requests cleanly", async ({ request, baseURL }) => {
+  const crossOrigin = await request.post("/api/auth", {
+    headers: { Origin: "null", "Content-Type": "application/json" },
+    data: { action: "auth:signOut", args: {} },
+  });
+  expect(crossOrigin.status()).toBe(403);
+  expect(await crossOrigin.json()).toEqual({ error: "Forbidden" });
+
+  const malformed = await request.post("/api/auth", {
+    headers: { Origin: new URL(baseURL ?? "http://localhost:3000").origin, "Content-Type": "application/json" },
+    data: "{",
+  });
+  expect(malformed.status()).toBe(400);
+  expect(await malformed.json()).toEqual({ error: "InvalidRequest" });
 });

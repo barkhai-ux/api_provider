@@ -1,0 +1,5 @@
+Contact: https://github.com/barkhai-ux/api_provider/security/advisories/new
+Expires: 2027-09-29T00:00:00Z
+Preferred-Languages: en, mn
+Canonical: https://developers.ubhub.mn/.well-known/security.txt
+Policy: https://github.com/barkhai-ux/api_provider/security

@@ -63,6 +63,13 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("location /demo/ { proxy_pass http://127.0.0.1:8009; }", config)
         self.assertIn("location /v1/ { proxy_pass http://127.0.0.1:8009; }", config)
 
+    def test_nginx_hides_version_and_rejects_cross_origin_convex_requests(self):
+        config = Path(__file__).with_name("nginx.conf").read_text()
+        self.assertIn("server_tokens off;", config)
+        self.assertIn('"https://developers.ubhub.mn" 0;', config)
+        self.assertIn("if ($developers_convex_origin_rejected) { return 403; }", config)
+        self.assertIn("proxy_hide_header Access-Control-Allow-Origin;", config)
+
     def test_demo_cors_falls_back_to_the_configured_website_origin(self):
         compose = Path(__file__).parents[2].joinpath("docker-compose.yml").read_text()
         self.assertIn(

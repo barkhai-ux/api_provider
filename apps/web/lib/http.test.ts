@@ -14,11 +14,18 @@ describe("isSameOrigin", () => {
   });
 
   it("uses X-Forwarded-Host behind a reverse proxy", () => {
-    expect(isSameOrigin(request({ origin: "https://geo.example.com", host: "web:3000", "x-forwarded-host": "geo.example.com" }))).toBe(true);
+    expect(isSameOrigin(request({
+      origin: "https://geo.example.com",
+      host: "web:3000",
+      "x-forwarded-host": "geo.example.com",
+      "x-forwarded-proto": "https",
+    }))).toBe(true);
   });
 
   it("rejects cross-site requests", () => {
     expect(isSameOrigin(request({ origin: "https://evil.example", host: "localhost:3000" }))).toBe(false);
+    expect(isSameOrigin(request({ origin: "https://localhost:3000", host: "localhost:3000" }))).toBe(false);
+    expect(isSameOrigin(request({ origin: "null", host: "localhost:3000" }))).toBe(false);
     expect(isSameOrigin(request({ origin: "http://localhost:3000", host: "localhost:3000", "sec-fetch-site": "cross-site" }))).toBe(false);
     expect(isSameOrigin(request({ host: "localhost:3000" }))).toBe(false);
   });

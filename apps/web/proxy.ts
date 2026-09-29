@@ -5,7 +5,7 @@ import {
 } from "@convex-dev/auth/nextjs/server";
 import { type NextFetchEvent, type NextRequest, NextResponse } from "next/server";
 import { contentSecurityPolicy, createNonce } from "@/lib/csp";
-import { clientIp } from "@/lib/http";
+import { clientIp, isSameOrigin } from "@/lib/http";
 
 /**
  * Next.js 16 proxy (formerly middleware).
@@ -107,8 +107,34 @@ function authRateLimited(request: NextRequest): boolean {
   return entry.count > AUTH_MAX_REQUESTS;
 }
 
+async function validateAuthAction(request: NextRequest): Promise<Response | undefined> {
+  if (!isSameOrigin(request)) {
+    return Response.json({ error: "Forbidden" }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
+  try {
+    const body = (await request.clone().json()) as unknown;
+    if (
+      body === null ||
+      typeof body !== "object" ||
+      Array.isArray(body) ||
+      typeof (body as Record<string, unknown>).action !== "string" ||
+      (body as Record<string, unknown>).args === null ||
+      typeof (body as Record<string, unknown>).args !== "object" ||
+      Array.isArray((body as Record<string, unknown>).args)
+    ) {
+      throw new TypeError("Invalid auth action payload");
+    }
+  } catch {
+    return Response.json({ error: "InvalidRequest" }, { status: 400, headers: { "Cache-Control": "no-store" } });
+  }
+}
+
 export async function proxy(request: NextRequest, event: NextFetchEvent) {
   const isAuthAction = request.method === "POST" && request.nextUrl.pathname.replace(/\/$/, "") === "/api/auth";
+  if (isAuthAction) {
+    const validationError = await validateAuthAction(request);
+    if (validationError) return validationError;
+  }
   if (isAuthAction && authRateLimited(request)) {
     return Response.json(
       { error: "TooManyFailedAttempts" },

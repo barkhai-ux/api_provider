@@ -6,6 +6,7 @@ WORKDIR /repo
 
 FROM base AS deps
 COPY package.json package-lock.json ./
+COPY patches ./patches
 COPY apps/web/package.json apps/web/
 COPY apps/convex/package.json apps/convex/
 COPY packages/types/package.json packages/types/

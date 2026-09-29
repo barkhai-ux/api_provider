@@ -48,9 +48,12 @@ export function isSameOrigin(request: NextRequest): boolean {
   if (fetchSite !== null && fetchSite !== "same-origin") return false;
   const origin = request.headers.get("origin");
   if (origin === null) return fetchSite === "same-origin";
-  const host = request.headers.get("x-forwarded-host") ?? request.headers.get("host");
+  const host = (request.headers.get("x-forwarded-host") ?? request.headers.get("host"))?.split(",")[0]?.trim();
+  const protocol =
+    request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? request.nextUrl.protocol.replace(/:$/, "");
   try {
-    return host !== null && new URL(origin).host === host;
+    if (!host || (protocol !== "http" && protocol !== "https")) return false;
+    return new URL(origin).origin === new URL(`${protocol}://${host}`).origin;
   } catch {
     return false;
   }
