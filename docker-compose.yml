@@ -110,7 +110,10 @@ services:
       API_KEY_PEPPER: *api-key-pepper
       SITE_API_KEY: *site-api-key
       CORS_ORIGINS: ${CORS_ORIGINS:-*}
-      DEMO_CORS_ORIGINS: ${DEMO_CORS_ORIGINS:-http://localhost:3000}
+      # Reuse the public website origin when no demo-specific allowlist is set.
+      # This keeps zero-config development on localhost and lets an existing
+      # production WEB_BASE_URL satisfy the API's HTTPS-only origin guard.
+      DEMO_CORS_ORIGINS: ${DEMO_CORS_ORIGINS:-${WEB_BASE_URL:-http://localhost:3000}}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
       SITE_KEY_PER_IP_PER_MINUTE: ${SITE_KEY_PER_IP_PER_MINUTE:-60}
       AUTH_CACHE_TTL_SECONDS: ${AUTH_CACHE_TTL_SECONDS:-0}

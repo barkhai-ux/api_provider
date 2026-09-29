@@ -63,5 +63,12 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("location /demo/ { proxy_pass http://127.0.0.1:8009; }", config)
         self.assertIn("location /v1/ { proxy_pass http://127.0.0.1:8009; }", config)
 
+    def test_demo_cors_falls_back_to_the_configured_website_origin(self):
+        compose = Path(__file__).parents[2].joinpath("docker-compose.yml").read_text()
+        self.assertIn(
+            "DEMO_CORS_ORIGINS: ${DEMO_CORS_ORIGINS:-${WEB_BASE_URL:-http://localhost:3000}}",
+            compose,
+        )
+
 if __name__ == "__main__":
     unittest.main()
