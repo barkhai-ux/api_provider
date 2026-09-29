@@ -69,6 +69,7 @@ class DeploymentTests(unittest.TestCase):
             "DEMO_CORS_ORIGINS: ${DEMO_CORS_ORIGINS:-${WEB_BASE_URL:-http://localhost:3000}}",
             compose,
         )
+        self.assertIn('AUTH_CACHE_TTL_SECONDS: "0"', compose)
 
 if __name__ == "__main__":
     unittest.main()

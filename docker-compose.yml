@@ -116,7 +116,10 @@ services:
       DEMO_CORS_ORIGINS: ${DEMO_CORS_ORIGINS:-${WEB_BASE_URL:-http://localhost:3000}}
       RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-100}
       SITE_KEY_PER_IP_PER_MINUTE: ${SITE_KEY_PER_IP_PER_MINUTE:-60}
-      AUTH_CACHE_TTL_SECONDS: ${AUTH_CACHE_TTL_SECONDS:-0}
+      # Compose may run several API instances and must preserve immediate key
+      # revocation and distributed quota enforcement. Do not inherit a legacy
+      # non-zero value from the host's production environment.
+      AUTH_CACHE_TTL_SECONDS: "0"
       DEMO_REQUESTS_PER_MINUTE: ${DEMO_REQUESTS_PER_MINUTE:-20}
       DEMO_REQUESTS_PER_HOUR: ${DEMO_REQUESTS_PER_HOUR:-100}
       DEMO_GLOBAL_UNITS_PER_MINUTE: ${DEMO_GLOBAL_UNITS_PER_MINUTE:-5000}
