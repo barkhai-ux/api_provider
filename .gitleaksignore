@@ -1,0 +1,2 @@
+# False positive: the documentation used the literal placeholder `geo_REDACTED`.
+9f89edd58c50963f2f410b5e81dc335aa81fba1e:docs/security/api-security.md:curl-auth-header:76

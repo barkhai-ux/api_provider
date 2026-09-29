@@ -124,18 +124,18 @@ class RequestContextMiddleware:
             settings = scope["app"].state.settings
             raw_ip = ""
             if settings.client_ip_header:
-                raw_ip = dict(scope["headers"]).get(
-                    settings.client_ip_header.lower().encode("ascii"), b""
-                ).decode("latin-1")
+                raw_ip = (
+                    dict(scope["headers"])
+                    .get(settings.client_ip_header.lower().encode("ascii"), b"")
+                    .decode("latin-1")
+                )
             elif scope.get("client"):
                 raw_ip = str(scope["client"][0])
             try:
                 source_ip: str | None = str(ipaddress.ip_address(raw_ip.strip()))
             except ValueError:
                 source_ip = None
-            user_agent = dict(scope["headers"]).get(b"user-agent", b"").decode(
-                "latin-1"
-            )[:256]
+            user_agent = dict(scope["headers"]).get(b"user-agent", b"").decode("latin-1")[:256]
             logger.info(
                 "request",
                 extra={

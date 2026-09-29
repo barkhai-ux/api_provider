@@ -128,9 +128,7 @@ class _CachedTokenProvider:
     async def _post(self, url: str, form: dict[str, str]) -> dict[str, object]:
         headers = {"Referer": self._referer} if self._referer else {}
         try:
-            response = await self._http.post(
-                url, data=form, headers=headers, timeout=self._http_timeout
-            )
+            response = await self._http.post(url, data=form, headers=headers, timeout=self._http_timeout)
         except httpx.HTTPError as exc:
             raise ArcGISUnavailableError(f"Could not reach the token service ({type(exc).__name__})") from exc
         try:

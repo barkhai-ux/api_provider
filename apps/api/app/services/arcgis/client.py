@@ -482,9 +482,7 @@ class ArcGISFeatureServerClient:
                     extra={"recovery_seconds": self._circuit_recovery_seconds},
                 )
 
-    async def _request(
-        self, url: str, params: dict[str, str], *, force_post: bool = False
-    ) -> dict[str, Any]:
+    async def _request(self, url: str, params: dict[str, str], *, force_post: bool = False) -> dict[str, Any]:
         """Execute through a closed/half-open/open circuit breaker.
 
         Availability failures count; valid ArcGIS error responses prove the

@@ -338,9 +338,7 @@ async def require_demo_access(request: Request) -> None:
             429,
             ErrorCode.RATE_LIMIT_EXCEEDED,
             "Too many demo requests.",
-            headers={
-                "Retry-After": str(max(1, result.rate_limit.reset - int(time.time())))
-            },
+            headers={"Retry-After": str(max(1, result.rate_limit.reset - int(time.time())))},
         )
 
 

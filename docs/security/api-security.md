@@ -74,7 +74,8 @@ Never run load or attack tests against production.
 ```bash
 # Customer authentication
 curl -i 'http://localhost:8000/v1/geocode?q=Ulaanbaatar'
-curl -i -H 'Authorization: Bearer geo_REDACTED' \
+export API_KEY='replace-with-a-local-test-key'
+curl -i -H "Authorization: Bearer ${API_KEY}" \
   'http://localhost:8000/v1/geocode?q=Ulaanbaatar'
 
 # Discoverable anonymous demo; repeat to observe 429 + Retry-After

@@ -23,6 +23,7 @@ from app.services.cache import TTLCache
 
 router = APIRouter(prefix="/demo", tags=["Demo"])
 
+
 async def _within_demo_deadline[T](request: Request, operation: Awaitable[T]) -> T:
     try:
         async with asyncio.timeout(request.app.state.settings.demo_timeout_seconds):
@@ -61,9 +62,7 @@ async def demo_geocode(
     if len(normalized) < 2:
         raise invalid_request("The 'q' parameter must contain at least 2 letters or digits.", field="q")
     if limit > settings.demo_max_results:
-        raise invalid_request(
-            f"The demo returns at most {settings.demo_max_results} results.", field="limit"
-        )
+        raise invalid_request(f"The demo returns at most {settings.demo_max_results} results.", field="limit")
     cache: TTLCache[GeocodeResponse] = request.app.state.demo_geocode_cache
     cache_key = f"geocode:{normalized}:{limit}"
     cached = cache.get(cache_key)
