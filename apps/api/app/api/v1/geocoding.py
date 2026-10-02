@@ -32,7 +32,7 @@ MAX_QUERY_LENGTH = 200
         "not an error). Send either `q` or both `lat` and `lon`, not both and not neither."
     ),
     tags=["Geocoding"],
-    responses=error_responses(400, 401, 403, 408, 429, 500, 502, 503),
+    responses=error_responses(400, 401, 402, 403, 408, 429, 500, 502, 503),
 )
 async def geocode(
     _: ApiKeyPrincipal,

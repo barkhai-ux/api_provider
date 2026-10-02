@@ -1,9 +1,9 @@
 import { ConvexError, v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { action, internalAction, internalMutation, internalQuery, query, type ActionCtx } from "./_generated/server";
+import { action, internalAction, internalMutation, internalQuery, mutation, query, type ActionCtx } from "./_generated/server";
 import { requireUserId } from "./lib/session";
-import { activePlan, PAID_PLANS, PLAN_DURATION_MS, PLAN_WIRE_AMOUNT, PLAN_PRICE_MNT } from "./lib/plans";
+import { activePlan, freeRequestsRemaining, FREE_TOTAL_REQUESTS, hasKeyAccess, PAID_PLANS, PLAN_DURATION_MS, PLAN_WIRE_AMOUNT, PLAN_PRICE_MNT } from "./lib/plans";
 import { WireApiError, wireRequest, type WireIntent } from "./lib/wire";
 import { isProduction } from "./lib/env";
 
@@ -17,18 +17,36 @@ export const myBilling = query({
     if (!user) throw new ConvexError("Account not found.");
     const payments = await ctx.db
       .query("payments")
-      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .withIndex("by_user_status_created", (q) => q.eq("userId", userId).eq("status", "succeeded"))
       .order("desc")
       .take(20);
     return {
       plan: activePlan(user),
       planExpiresAt: activePlan(user) ? user.planExpiresAt : null,
+      canUseApiKeys: hasKeyAccess(user),
+      freeTier: {
+        activated: user.freeTierActivatedAt !== undefined,
+        remaining: freeRequestsRemaining(user),
+        total: FREE_TOTAL_REQUESTS,
+      },
       plans: PAID_PLANS,
       priceMnt: PLAN_PRICE_MNT,
       payments: payments.map(({ _id, plan, status, amountMinor, createdAt, paidAt }) => ({
         id: _id, plan, status, amountMinor, createdAt, paidAt: paidAt ?? null,
       })),
     };
+  },
+});
+
+/** Each account can activate the 500-request testing tier once. */
+export const activateFreeTier = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUserId(ctx);
+    const user = await ctx.db.get(userId);
+    if (!user || user.isSystem || user.disabledAt !== undefined) throw new ConvexError("Account not found.");
+    if (user.freeTierActivatedAt !== undefined) return;
+    await ctx.db.patch(userId, { freeTierActivatedAt: Date.now(), freeRequestsUsed: 0 });
   },
 });
 

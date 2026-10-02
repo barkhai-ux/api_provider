@@ -18,7 +18,7 @@ import type { ApiKey } from "./api-key-types";
 import { KEY_ENDPOINTS } from "./key-options";
 
 export type KeyAction = "rename" | "regenerate" | "revoke";
-type Props = { keys: ApiKey[]; onAction: (action: KeyAction, key: ApiKey) => void; caption: string };
+type Props = { keys: ApiKey[]; onAction: (action: KeyAction, key: ApiKey) => void; caption: string; canRegenerate?: boolean };
 
 function MaskedKey({ value }: { value: string }) {
   return (
@@ -124,7 +124,7 @@ function LastUsed({ apiKey }: { apiKey: ApiKey }) {
   );
 }
 
-function Actions({ apiKey, onAction, expired }: { apiKey: ApiKey; onAction: Props["onAction"]; expired: boolean }) {
+function Actions({ apiKey, onAction, expired, canRegenerate }: { apiKey: ApiKey; onAction: Props["onAction"]; expired: boolean; canRegenerate: boolean }) {
   if (apiKey.revokedAt !== null) return null;
   return (
     <DropdownMenu>
@@ -137,7 +137,7 @@ function Actions({ apiKey, onAction, expired }: { apiKey: ApiKey; onAction: Prop
         <DropdownMenuItem onSelect={() => onAction("rename", apiKey)}>
           <Pencil /> Rename
         </DropdownMenuItem>
-        {!expired && (
+        {!expired && canRegenerate && (
           <DropdownMenuItem onSelect={() => onAction("regenerate", apiKey)}>
             <RefreshCw /> Regenerate secret
           </DropdownMenuItem>
@@ -161,7 +161,7 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /** API keys as a table (desktop) or stacked cards (mobile), like a console's key list. */
-export function ApiKeysTable({ keys, onAction, caption }: Props) {
+export function ApiKeysTable({ keys, onAction, caption, canRegenerate = true }: Props) {
   const wide = useMediaQuery("(min-width: 768px)");
   // Expiry is shown relative to when the list rendered; Convex re-renders it on every change.
   const [now] = useState(() => Date.now());
@@ -184,7 +184,7 @@ export function ApiKeysTable({ keys, onAction, caption }: Props) {
                   {isExpired(apiKey, now) && <ExpiredBadge />}
                 </p>
               </div>
-              <Actions apiKey={apiKey} onAction={onAction} expired={isExpired(apiKey, now)} />
+              <Actions apiKey={apiKey} onAction={onAction} expired={isExpired(apiKey, now)} canRegenerate={canRegenerate} />
             </div>
             <dl className="mt-4 grid gap-4">
               <Field label="API key">
@@ -281,7 +281,7 @@ export function ApiKeysTable({ keys, onAction, caption }: Props) {
                 <Expires apiKey={apiKey} now={now} />
               </td>
               <td className="py-5 pr-6 pl-2 text-right">
-                <Actions apiKey={apiKey} onAction={onAction} expired={isExpired(apiKey, now)} />
+                <Actions apiKey={apiKey} onAction={onAction} expired={isExpired(apiKey, now)} canRegenerate={canRegenerate} />
               </td>
             </tr>
           ))}

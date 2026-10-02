@@ -156,6 +156,22 @@
               }
             }
           },
+          "402": {
+            "description": "402 PAYMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": {
+                    "code": "PAYMENT_REQUIRED",
+                    "message": "Activate the free tier or a paid plan to use API keys."
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
             "content": {
@@ -357,6 +373,22 @@
               }
             }
           },
+          "402": {
+            "description": "402 PAYMENT_REQUIRED",
+            "content": {
+              "application/json": {
+                "example": {
+                  "error": {
+                    "code": "PAYMENT_REQUIRED",
+                    "message": "Activate the free tier or a paid plan to use API keys."
+                  }
+                },
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
           "403": {
             "description": "403 API_KEY_REVOKED or ENDPOINT_NOT_ALLOWED",
             "content": {
@@ -535,6 +567,7 @@
               "INVALID_REQUEST",
               "INVALID_API_KEY",
               "API_KEY_REVOKED",
+              "PAYMENT_REQUIRED",
               "ENDPOINT_NOT_ALLOWED",
               "NOT_FOUND",
               "REQUEST_TIMEOUT",

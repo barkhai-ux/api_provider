@@ -3,7 +3,8 @@
 import { api } from "@geo-platform/convex/api";
 import type { Id } from "@geo-platform/convex/dataModel";
 import { useAction, useMutation } from "convex/react";
-import { KeyRound, Plus, ShieldCheck } from "lucide-react";
+import { CreditCard, KeyRound, Plus, ShieldCheck } from "lucide-react";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -24,6 +25,7 @@ import { RenameKeyDialog } from "./rename-key-dialog";
 export function ApiKeysView() {
   const t = useT();
   const keys = useConsoleQuery(api.apiKeys.list, {});
+  const billing = useConsoleQuery(api.payments.myBilling, {});
   const createKey = useAction(api.apiKeys.create);
   const regenerateKey = useAction(api.apiKeys.regenerate);
   const renameKey = useMutation(api.apiKeys.rename);
@@ -85,6 +87,7 @@ export function ApiKeysView() {
 
   const active = keys?.filter((key) => key.revokedAt === null) ?? [];
   const revoked = keys?.filter((key) => key.revokedAt !== null) ?? [];
+  const hasKeyAccess = billing?.canUseApiKeys === true;
   const onAction = (action: KeyAction, key: ApiKey) => setPending({ action, key });
 
   return (
@@ -93,31 +96,44 @@ export function ApiKeysView() {
         title={t("dashboard.apiKeys.title")}
         description={t("dashboard.apiKeys.subtitle")}
         actions={
-          <Button size="pill" className="h-10 px-5" onClick={() => setCreateOpen(true)}>
-            <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
-          </Button>
+          billing === undefined ? null : hasKeyAccess ? (
+            <Button size="pill" className="h-10 px-5" onClick={() => setCreateOpen(true)}>
+              <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
+            </Button>
+          ) : (
+            <Button asChild size="pill" className="h-10 px-5">
+              <Link href="/dashboard/billing"><CreditCard aria-hidden="true" /> {t("dashboard.apiKeys.choosePlan")}</Link>
+            </Button>
+          )
         }
       />
 
-      {keys === undefined ? (
+      {keys === undefined || billing === undefined ? (
         <div className="space-y-3" aria-busy="true" aria-label="Loading API keys">
           <Skeleton className="h-16 w-full rounded-2xl" />
           <Skeleton className="h-16 w-full rounded-2xl" />
         </div>
       ) : active.length === 0 ? (
         <EmptyState
-          icon={KeyRound}
-          title="No active API keys"
-          description="Create a key to start calling the geocoding, reverse geocoding and routing APIs."
+          icon={hasKeyAccess ? KeyRound : CreditCard}
+          title={hasKeyAccess ? "No active API keys" : t("dashboard.apiKeys.requiresPlanTitle")}
+          description={hasKeyAccess
+            ? "Create a key to start calling the geocoding, reverse geocoding and routing APIs."
+            : t("dashboard.apiKeys.requiresPlanDescription")}
           action={
-            <Button onClick={() => setCreateOpen(true)}>
-              <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
-            </Button>
+            hasKeyAccess ? (
+              <Button onClick={() => setCreateOpen(true)}>
+                <Plus aria-hidden="true" /> {t("dashboard.apiKeys.create")}
+              </Button>
+            ) : (
+              <Button asChild><Link href="/dashboard/billing">{t("dashboard.apiKeys.choosePlan")}</Link></Button>
+            )
           }
         />
       ) : (
         <section aria-label="Active API keys">
-          <ApiKeysTable keys={active} onAction={onAction} caption="Active API keys" />
+          {!hasKeyAccess && <p role="status" className="mb-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm">{t("dashboard.apiKeys.keysPaused")}</p>}
+          <ApiKeysTable keys={active} onAction={onAction} caption="Active API keys" canRegenerate={hasKeyAccess} />
         </section>
       )}
 
@@ -138,7 +154,7 @@ export function ApiKeysView() {
         </details>
       )}
 
-      <CreateKeyDialog open={createOpen} onOpenChange={setCreateOpen} onCreate={handleCreate} />
+      <CreateKeyDialog open={hasKeyAccess && createOpen} onOpenChange={setCreateOpen} onCreate={handleCreate} />
       <OneTimeSecretDialog revealed={revealed} onDone={() => setRevealed(null)} />
       <RenameKeyDialog
         open={pending?.action === "rename"}

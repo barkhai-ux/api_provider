@@ -156,7 +156,7 @@ class ConvexFake:
         key = self.keys.get(data["hash"])
         if key is None or key["kind"] != data["kind"]:
             return httpx.Response(200, json={"status": "invalid"})
-        if key["status"] in ("revoked", "expired"):
+        if key["status"] in ("revoked", "expired", "payment_required"):
             return httpx.Response(200, json={"status": key["status"]})
         principal = {
             "keyId": key["keyId"],
@@ -208,7 +208,7 @@ class ConvexFake:
         key = self.keys.get(data["hash"])
         if key is None or key["kind"] != "key":
             return httpx.Response(200, json={"status": "invalid"})
-        if key["status"] in ("revoked", "expired"):
+        if key["status"] in ("revoked", "expired", "payment_required"):
             return httpx.Response(200, json={"status": key["status"]})
         return httpx.Response(
             200,

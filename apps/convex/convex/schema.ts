@@ -28,6 +28,8 @@ export default defineSchema({
     updatedAt: v.optional(v.number()),
     plan: v.optional(v.union(v.literal("starter"), v.literal("essentials"), v.literal("pro"))),
     planExpiresAt: v.optional(v.number()),
+    freeTierActivatedAt: v.optional(v.number()),
+    freeRequestsUsed: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("by_system", ["isSystem"])
@@ -143,5 +145,6 @@ export default defineSchema({
   })
     .index("by_intent", ["paymentIntentId"])
     .index("by_user", ["userId", "createdAt"])
+    .index("by_user_status_created", ["userId", "status", "createdAt"])
     .index("by_status_created", ["status", "createdAt"]),
 });

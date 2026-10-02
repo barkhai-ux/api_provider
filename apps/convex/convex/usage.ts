@@ -2,9 +2,8 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
-import { defaultRateLimitPerMinute } from "./lib/env";
 import { requireUserId } from "./lib/session";
-import { activePlan, FREE_MONTHLY_REQUESTS, PAID_PLANS } from "./lib/plans";
+import { activePlan, freeRequestsRemaining, FREE_RATE_LIMIT_PER_MINUTE, FREE_TOTAL_REQUESTS, PAID_PLANS } from "./lib/plans";
 import { DAY_MS, utcDay, utcMonthStartDay } from "./lib/time";
 
 const MAX_SERIES_DAYS = 90;
@@ -48,25 +47,25 @@ export const summary = query({
       ctx.db
         .query("quotaWindows")
         .withIndex("by_bucket_period_start", (q) =>
-          q.eq("bucket", `tenant:${userId}`).eq("period", "day").eq("periodStart", dayStart),
+          q.eq("bucket", `${limits ? "" : "free:"}tenant:${userId}`).eq("period", "day").eq("periodStart", dayStart),
         )
         .unique(),
       ctx.db
         .query("quotaWindows")
         .withIndex("by_bucket_period_start", (q) =>
-          q.eq("bucket", `tenant:${userId}`).eq("period", "month").eq("periodStart", monthStart),
+          q.eq("bucket", `${limits ? "" : "free:"}tenant:${userId}`).eq("period", "month").eq("periodStart", monthStart),
         )
         .unique(),
     ]);
     return {
       today: todayCounts,
       month: monthCounts,
-      rateLimitPerMinute: limits?.requestsPerMinute ?? defaultRateLimitPerMinute(),
+      rateLimitPerMinute: limits?.requestsPerMinute ?? (user && freeRequestsRemaining(user) > 0 ? FREE_RATE_LIMIT_PER_MINUTE : 0),
       activeKeys: active.length,
       totalKeys: keys.length,
       quota: {
-        daily: { used: dailyQuota?.units ?? 0, limit: limits?.monthlyRequests ?? FREE_MONTHLY_REQUESTS },
-        monthly: { used: monthlyQuota?.units ?? 0, limit: limits?.monthlyRequests ?? FREE_MONTHLY_REQUESTS },
+        daily: { used: dailyQuota?.units ?? 0, limit: limits?.monthlyRequests ?? FREE_TOTAL_REQUESTS },
+        monthly: { used: limits ? monthlyQuota?.units ?? 0 : user?.freeRequestsUsed ?? 0, limit: limits?.monthlyRequests ?? FREE_TOTAL_REQUESTS },
       },
     };
   },

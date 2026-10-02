@@ -125,6 +125,10 @@ export default function ErrorsPage() {
           <strong>Fix the credentials</strong>: <C>INVALID_API_KEY</C>, <C>API_KEY_REVOKED</C>. Do not retry in a loop.
         </li>
         <li>
+          <strong>Activate a tier</strong>: <C>PAYMENT_REQUIRED</C>. Activate the free tier or buy a paid plan on the billing page, then
+          retry with the same key.
+        </li>
+        <li>
           <strong>Retry with backoff</strong>: <C>RATE_LIMIT_EXCEEDED</C> (wait for <C>Retry-After</C>),{" "}
           <C>REQUEST_TIMEOUT</C>, <C>UPSTREAM_ERROR</C>, <C>SERVICE_UNAVAILABLE</C> and <C>INTERNAL_ERROR</C>. Use
           exponential backoff with a cap, and give up after a few attempts.

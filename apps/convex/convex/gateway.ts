@@ -14,7 +14,6 @@ import { writeAudit } from "./lib/audit";
 import { API_ENDPOINTS, normalizeEndpoints } from "./lib/endpoints";
 import {
   accountRateLimitPerMinute,
-  endpointCost,
   endpointRateLimitPerMinute,
   endpointMonthlyQuotaUnits,
   globalRateLimitPerMinute,
@@ -26,7 +25,7 @@ import {
   tenantMonthlyQuotaUnits,
 } from "./lib/env";
 import { MINUTE_MS, utcDay, windowStart } from "./lib/time";
-import { activePlan, FREE_MONTHLY_REQUESTS, PAID_PLANS, type PaidPlan } from "./lib/plans";
+import { activePlan, FREE_RATE_LIMIT_PER_MINUTE, FREE_TOTAL_REQUESTS, hasKeyAccess, PAID_PLANS, type PaidPlan } from "./lib/plans";
 
 type RateLimitState = { limit: number; remaining: number; reset: number; allowed: boolean };
 
@@ -137,19 +136,22 @@ async function consumeCustomerQuotas(
   now: number,
   plan: PaidPlan | null,
 ): Promise<RateLimitState> {
-  const cost = plan ? 1 : endpointCost(endpoint);
-  const planQuota = plan ? PAID_PLANS[plan].monthlyRequests : FREE_MONTHLY_REQUESTS;
+  const cost = 1;
+  const planQuota = plan ? PAID_PLANS[plan].monthlyRequests : FREE_TOTAL_REQUESTS;
   const bounded = (configured: number) => plan ? planQuota : Math.min(planQuota, configured);
+  // Free traffic has a lifetime counter. Keep its window quotas apart from paid
+  // traffic so an account can use its free allowance after a paid plan expires.
+  const prefix = plan ? "" : "free:";
   const endpointName = API_ENDPOINTS.includes(endpoint as (typeof API_ENDPOINTS)[number])
     ? endpoint!
     : "unknown";
   const specs: { bucket: string; period: "day" | "month"; limit: number }[] = [
-    { bucket: `key:${key._id}`, period: "day", limit: bounded(keyDailyQuotaUnits()) },
-    { bucket: `key:${key._id}`, period: "month", limit: bounded(keyMonthlyQuotaUnits()) },
-    { bucket: `tenant:${key.userId}`, period: "day", limit: bounded(tenantDailyQuotaUnits()) },
-    { bucket: `tenant:${key.userId}`, period: "month", limit: bounded(tenantMonthlyQuotaUnits()) },
+    { bucket: `${prefix}key:${key._id}`, period: "day", limit: bounded(keyDailyQuotaUnits()) },
+    { bucket: `${prefix}key:${key._id}`, period: "month", limit: bounded(keyMonthlyQuotaUnits()) },
+    { bucket: `${prefix}tenant:${key.userId}`, period: "day", limit: bounded(tenantDailyQuotaUnits()) },
+    { bucket: `${prefix}tenant:${key.userId}`, period: "month", limit: bounded(tenantMonthlyQuotaUnits()) },
     {
-      bucket: `tenant:${key.userId}:endpoint:${endpointName}`,
+      bucket: `${prefix}tenant:${key.userId}:endpoint:${endpointName}`,
       period: "month",
       limit: bounded(endpointMonthlyQuotaUnits()),
     },
@@ -223,6 +225,7 @@ export const describe = internalQuery({
     if (key.expiresAt !== undefined && key.expiresAt <= now) return { status: "expired" as const };
     const owner = await ctx.db.get(key.userId);
     if (owner === null || owner.disabledAt !== undefined) return { status: "revoked" as const };
+    if (key.isSiteKey !== true && !hasKeyAccess(owner, now)) return { status: "payment_required" as const };
     return {
       status: "ok" as const,
       keyId: key._id,
@@ -309,7 +312,15 @@ export const authorize = internalMutation({
 
     const isSiteKey = key.isSiteKey === true && !viaPlayground;
     const plan = isSiteKey ? null : activePlan(owner, now);
-    const planRate = plan ? PAID_PLANS[plan].requestsPerMinute : null;
+    if (!isSiteKey && !hasKeyAccess(owner, now)) {
+      await writeAudit(ctx, "api_authorization_failed", "INFO", "failure", {
+        tenantId: key.userId,
+        apiKeyId: key._id,
+        detail: "payment_required",
+      });
+      return { status: "payment_required" as const };
+    }
+    const planRate = plan ? PAID_PLANS[plan].requestsPerMinute : isSiteKey ? null : FREE_RATE_LIMIT_PER_MINUTE;
     const principal = {
       keyId: key._id,
       userId: key.userId,
@@ -386,6 +397,9 @@ export const authorize = internalMutation({
           principal,
           rateLimit: { limit: quota.limit, remaining: quota.remaining, reset: quota.reset },
         };
+      }
+      if (plan === null) {
+        await ctx.db.patch(owner._id, { freeRequestsUsed: (owner.freeRequestsUsed ?? 0) + 1 });
       }
     }
     await writeAudit(ctx, "api_authentication_succeeded", "INFO", "success", {

@@ -88,6 +88,20 @@ async def test_revoked_key_is_honoured_and_cached(
     assert convex.describe_calls == []
 
 
+async def test_unpaid_key_is_paused_then_resumes_after_payment(
+    cached_client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
+) -> None:
+    key = "geo_" + "P" * 32
+    convex.add_key(key, status="payment_required")
+    response = await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))
+    assert response.status_code == 402
+    assert response.json()["error"]["code"] == "PAYMENT_REQUIRED"
+    convex.add_key(key)
+    arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
+    assert (await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))).status_code == 200
+    assert len(convex.authorize_calls) == 2
+
+
 async def test_endpoint_scope_enforced_locally(cached_client: httpx.AsyncClient, convex: ConvexFake) -> None:
     key = "geo_" + "G" * 32
     convex.add_key(key, endpoints=["geocode"])

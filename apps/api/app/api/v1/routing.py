@@ -46,7 +46,7 @@ def parse_coordinate(value: str, field: str) -> Coordinate:
         "use; the snapped points are returned in `waypoints`."
     ),
     tags=["Routing"],
-    responses=error_responses(400, 401, 403, 404, 408, 429, 500, 502, 503),
+    responses=error_responses(400, 401, 402, 403, 404, 408, 429, 500, 502, 503),
 )
 async def route(
     _: ApiKeyPrincipal,

@@ -12,6 +12,13 @@ export const metadata: Metadata = {
 
 const PLANS = [
   {
+    id: "free",
+    price: "₮0",
+    requests: "500",
+    rate: "30",
+    features: ["geocoding", "reverseGeocoding", "routing", "communitySupport"],
+  },
+  {
     id: "starter",
     price: "₮1,000",
     requests: "10,000",
@@ -72,7 +79,7 @@ export default async function PricingPage() {
         <h2 id="plans-heading" className="sr-only">
           {t("pricing.plansHeading")}
         </h2>
-        <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
           {PLANS.map((plan, index) => (
             <Reveal key={plan.id} delay={index * 0.06} className="h-full">
               <article className="relative flex h-full flex-col overflow-hidden rounded-2xl border bg-card">
@@ -83,7 +90,7 @@ export default async function PricingPage() {
                       {plan.price ? (
                         <>
                           <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                          <span className="pb-1 text-sm text-muted-foreground">{t("pricing.perMonth")}</span>
+                          <span className="pb-1 text-sm text-muted-foreground">{t(plan.id === "free" ? "pricing.freePeriod" : "pricing.perMonth")}</span>
                         </>
                       ) : (
                         <span className="text-3xl font-bold">{t("pricing.custom")}</span>
@@ -99,10 +106,10 @@ export default async function PricingPage() {
                       <Globe2 className="mt-0.5 size-5 shrink-0 text-primary" aria-hidden="true" />
                       <div>
                         <p className="font-bold">
-                          {plan.requests ? t("pricing.requests", { count: plan.requests }) : t("pricing.customRequests")}
+                          {plan.requests ? t(plan.id === "free" ? "pricing.freeRequests" : "pricing.requests", { count: plan.requests }) : t("pricing.customRequests")}
                         </p>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {plan.rate ? t("pricing.rateLimit", { count: plan.rate }) : t("pricing.customRateLimit")}
+                          {plan.rate ? t(plan.id === "free" ? "pricing.freeRateLimit" : "pricing.rateLimit", { count: plan.rate }) : t("pricing.customRateLimit")}
                         </p>
                       </div>
                     </div>

@@ -5,6 +5,6 @@ export const metadata: Metadata = { title: "Billing" };
 
 export default async function BillingPage({ searchParams }: PageProps<"/dashboard/billing">) {
   const { plan } = await searchParams;
-  const selected = plan === "starter" || plan === "essentials" || plan === "pro" ? plan : undefined;
+  const selected = plan === "free" || plan === "starter" || plan === "essentials" || plan === "pro" ? plan : undefined;
   return <BillingView selectedPlan={selected} />;
 }

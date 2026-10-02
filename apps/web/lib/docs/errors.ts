@@ -25,6 +25,13 @@ export const ERROR_CATALOG: ErrorInfo[] = [
     example: { message: "The API key is missing or invalid." },
   },
   {
+    status: 402,
+    code: "PAYMENT_REQUIRED",
+    meaning: "The account has no active tier or has used its 500 free requests, so its API keys are paused.",
+    action: "Activate the free tier or buy a paid plan on the Billing page, then retry with the same key.",
+    example: { message: "Activate the free tier or a paid plan to use API keys." },
+  },
+  {
     status: 403,
     code: "API_KEY_REVOKED",
     meaning: "The key was revoked in the dashboard.",

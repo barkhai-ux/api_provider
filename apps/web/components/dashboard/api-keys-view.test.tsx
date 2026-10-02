@@ -59,11 +59,19 @@ const mocks = vi.hoisted(() => ({
   rename: vi.fn(),
   revoke: vi.fn(),
   replace: vi.fn(),
+  billingPlan: "starter" as string | null,
+  freeRemaining: 0,
 }));
 
 vi.mock("convex/react", () => ({
   useConvexAuth: () => ({ isAuthenticated: true, isLoading: false }),
-  useQuery: (ref: unknown, args: unknown) => (args === "skip" ? undefined : getFunctionName(ref as never) === "apiKeys:list" ? keys : undefined),
+  useQuery: (ref: unknown, args: unknown) => {
+    if (args === "skip") return undefined;
+    const name = getFunctionName(ref as never);
+    if (name === "apiKeys:list") return keys;
+    if (name === "payments:myBilling") return { plan: mocks.billingPlan, canUseApiKeys: mocks.billingPlan !== null || mocks.freeRemaining > 0 };
+    return undefined;
+  },
   useAction: (ref: unknown) => (getFunctionName(ref as never) === "apiKeys:create" ? mocks.create : mocks.regenerate),
   useMutation: (ref: unknown) => (getFunctionName(ref as never) === "apiKeys:rename" ? mocks.rename : mocks.revoke),
 }));
@@ -76,8 +84,29 @@ vi.mock("next/navigation", () => ({
 describe("API keys page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.billingPlan = "starter";
+    mocks.freeRemaining = 0;
     mocks.create.mockResolvedValue({ id: "key_3", secret: NEW_SECRET, maskedKey: "geo_Secr••••••••••••" });
     mocks.revoke.mockResolvedValue(null);
+  });
+
+  it("sends unpaid users to billing instead of offering a new secret", async () => {
+    mocks.billingPlan = null;
+    const user = userEvent.setup();
+    renderWithQueryClient(<ApiKeysView />);
+    expect(screen.queryByRole("button", { name: "Create API key" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Choose a plan" })).toHaveAttribute("href", "/dashboard/billing");
+    expect(screen.getByText(/API keys are paused/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Actions for Production" }));
+    expect(screen.queryByRole("menuitem", { name: "Regenerate secret" })).not.toBeInTheDocument();
+  });
+
+  it("allows an activated free account to create keys while requests remain", () => {
+    mocks.billingPlan = null;
+    mocks.freeRemaining = 500;
+    renderWithQueryClient(<ApiKeysView />);
+    expect(screen.getByRole("button", { name: "Create API key" })).toBeInTheDocument();
+    expect(screen.queryByText(/API keys are paused/)).not.toBeInTheDocument();
   });
 
   it("lists keys with masked secrets only", () => {

@@ -23,6 +23,7 @@ export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
   const t = useT();
   const { isAuthenticated } = useConvexAuth();
   const viewer = useConsoleQuery(api.users.viewer, {});
+  const billing = useConsoleQuery(api.payments.myBilling, {});
   const summary = useConsoleQuery(api.usage.summary, {});
   const daily = useConsoleQuery(api.usage.daily, { days: 30 });
   const recent = usePaginatedQuery(api.usage.recent, isAuthenticated ? {} : "skip", {
@@ -83,19 +84,21 @@ export function OverviewView({ quickstart }: { quickstart: ReactNode }) {
         />
       </section>
 
-      {summary && summary.activeKeys === 0 && summary.month.total === 0 ? (
+      {summary && billing !== undefined && summary.activeKeys === 0 && summary.month.total === 0 ? (
         <div className="mt-6">
           <EmptyState
             icon={KeyRound}
-            title={t("dashboard.home.emptyTitle")}
-            description={t("dashboard.home.emptyDesc")}
+            title={billing.canUseApiKeys ? t("dashboard.home.emptyTitle") : t("dashboard.apiKeys.requiresPlanTitle")}
+            description={billing.canUseApiKeys ? t("dashboard.home.emptyDesc") : t("dashboard.apiKeys.requiresPlanDescription")}
             action={
               <Button asChild size="pill" className="h-10 px-5">
-                <Link href="/dashboard/api-keys?create=1">{t("dashboard.home.createKey")}</Link>
+                <Link href={billing.canUseApiKeys ? "/dashboard/api-keys?create=1" : "/dashboard/billing"}>
+                  {billing.canUseApiKeys ? t("dashboard.home.createKey") : t("dashboard.apiKeys.choosePlan")}
+                </Link>
               </Button>
             }
           >
-            {quickstart}
+            {billing.canUseApiKeys ? quickstart : null}
           </EmptyState>
         </div>
       ) : (

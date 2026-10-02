@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { api } from "../convex/_generated/api";
-import { insertKey, setup, signedInUser } from "./setup";
+import { insertKey, setup, signedInPaidUser, signedInUser } from "./setup";
 
 describe("tenant isolation (IDOR)", () => {
   it("user A cannot rename, revoke or regenerate user B's key", async () => {
@@ -107,6 +107,37 @@ describe("sessions", () => {
 });
 
 describe("API keys", () => {
+  it("requires payment before issuing or regenerating a secret", async () => {
+    const t = setup();
+    const alice = await signedInUser(t, "alice@example.com");
+    const oldKey = await insertKey(t, alice.userId);
+    await expect(alice.as.action(api.apiKeys.create, { name: "Server" })).rejects.toThrow(/free tier or a paid plan/);
+    await expect(alice.as.action(api.apiKeys.regenerate, { keyId: oldKey })).rejects.toThrow(/free tier or a paid plan/);
+    await expect(alice.as.action(api.apiKeys.createPlaygroundToken, { keyId: oldKey })).rejects.toThrow(/free tier or a paid plan/);
+    expect(await alice.as.query(api.apiKeys.list, {})).toHaveLength(1);
+    await t.run((ctx) => ctx.db.patch(alice.userId, { plan: "starter", planExpiresAt: Date.now() + 60_000 }));
+    const created = await alice.as.action(api.apiKeys.create, { name: "Server" });
+    expect(created.secret).toMatch(/^geo_/);
+    await t.run((ctx) => ctx.db.patch(alice.userId, { planExpiresAt: Date.now() - 1 }));
+    await expect(alice.as.action(api.apiKeys.regenerate, { keyId: created.id })).rejects.toThrow(/free tier or a paid plan/);
+  });
+
+  it("activates the free tier once and allows a key while requests remain", async () => {
+    const t = setup();
+    const alice = await signedInUser(t, "free@example.com");
+    await alice.as.mutation(api.payments.activateFreeTier, {});
+    await alice.as.mutation(api.payments.activateFreeTier, {});
+    const billing = await alice.as.query(api.payments.myBilling, {});
+    expect(billing.freeTier).toEqual({ activated: true, remaining: 500, total: 500 });
+    expect(billing.canUseApiKeys).toBe(true);
+    expect((await alice.as.action(api.apiKeys.create, { name: "Test" })).secret).toMatch(/^geo_/);
+    await t.run((ctx) => ctx.db.patch(alice.userId, { freeRequestsUsed: 500 }));
+    expect((await alice.as.query(api.payments.myBilling, {})).canUseApiKeys).toBe(false);
+    await expect(alice.as.action(api.apiKeys.create, { name: "Another" })).rejects.toThrow(/free tier or a paid plan/);
+    await alice.as.mutation(api.payments.activateFreeTier, {});
+    expect((await alice.as.query(api.payments.myBilling, {})).freeTier.remaining).toBe(0);
+  });
+
   it("rejects expiry dates in the past or too far ahead", async () => {
     const t = setup();
     const alice = await signedInUser(t, "alice@example.com");
@@ -121,7 +152,7 @@ describe("API keys", () => {
 
   it("creates keys with a random secret that is never stored", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     const created = await alice.as.action(api.apiKeys.create, { name: "Server", endpoints: ["geocode"] });
     expect(created.secret).toMatch(/^geo_[A-Za-z0-9]{32}$/);
     const stored = await t.run((ctx) => ctx.db.get(created.id));
@@ -132,7 +163,7 @@ describe("API keys", () => {
 
   it("does not issue playground tokens for expired keys, and keeps few per key", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     const expired = await insertKey(t, alice.userId, { expiresAt: Date.now() - 1000 });
     await expect(alice.as.action(api.apiKeys.createPlaygroundToken, { keyId: expired })).rejects.toThrow(/expired/);
 
@@ -149,7 +180,7 @@ describe("API keys", () => {
 
   it("revoking or regenerating a key deletes its playground tokens", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     const key = await insertKey(t, alice.userId);
     await alice.as.action(api.apiKeys.createPlaygroundToken, { keyId: key });
     await alice.as.action(api.apiKeys.regenerate, { keyId: key });

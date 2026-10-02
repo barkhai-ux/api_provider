@@ -2,7 +2,7 @@
 
 import { api } from "@geo-platform/convex/api";
 import type { Id } from "@geo-platform/convex/dataModel";
-import { useAction, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,16 +14,18 @@ type Plan = "starter" | "essentials" | "pro";
 const PLAN_ORDER: Plan[] = ["starter", "essentials", "pro"];
 type Checkout = { paymentId: Id<"payments">; plan: Plan; nextAction: unknown };
 
-export function BillingView({ selectedPlan }: { selectedPlan?: Plan }) {
+export function BillingView({ selectedPlan }: { selectedPlan?: Plan | "free" }) {
   const { t, locale } = useI18n();
   const billing = useQuery(api.payments.myBilling, {});
   const startCheckout = useAction(api.payments.startCheckout);
   const refreshPayment = useAction(api.payments.refreshPayment);
+  const activateFreeTier = useMutation(api.payments.activateFreeTier);
   const [starting, setStarting] = useState<Plan | null>(null);
+  const [activatingFree, setActivatingFree] = useState(false);
   const [checkout, setCheckout] = useState<Checkout | null>(null);
   const [error, setError] = useState("");
   const paymentStatus = useQuery(api.payments.paymentStatus, checkout ? { paymentId: checkout.paymentId } : "skip");
-  const paidPayments = billing?.payments.filter((payment) => payment.status === "succeeded") ?? [];
+  const paidPayments = billing?.payments ?? [];
 
   useEffect(() => {
     if (!checkout || paymentStatus !== "pending") return;
@@ -52,6 +54,19 @@ export function BillingView({ selectedPlan }: { selectedPlan?: Plan }) {
     }
   }
 
+  async function activateFree() {
+    setActivatingFree(true);
+    setError("");
+    try {
+      await activateFreeTier({});
+    } catch (cause) {
+      console.error("free tier activation failed", cause);
+      setError(t("billing.freeActivationError"));
+    } finally {
+      setActivatingFree(false);
+    }
+  }
+
   function date(value: number) {
     return new Intl.DateTimeFormat(locale === "mn" ? "mn-MN" : "en-US", { dateStyle: "medium" }).format(value);
   }
@@ -66,11 +81,30 @@ export function BillingView({ selectedPlan }: { selectedPlan?: Plan }) {
             <CardDescription>
               {billing === undefined ? t("common.loading") : billing.plan
                 ? t("billing.activeUntil", { plan: t(`pricing.plans.${billing.plan}.name`), date: date(billing.planExpiresAt!) })
-                : t("billing.freePlan")}
+                : billing.freeTier.activated
+                  ? t("billing.freeActive", { remaining: billing.freeTier.remaining.toLocaleString(), total: billing.freeTier.total.toLocaleString() })
+                  : t("billing.freePlan")}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-muted-foreground">{t("billing.renewalNote")}</p>
+          </CardContent>
+        </Card>
+
+        <Card className={selectedPlan === "free" ? "border-primary" : undefined}>
+          <CardHeader>
+            <CardTitle>{t("pricing.plans.free.name")}</CardTitle>
+            <CardDescription>{t("pricing.plans.free.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="space-y-2">
+              <p className="text-2xl font-bold">₮0</p>
+              <p className="text-sm">{t("pricing.freeRequests", { count: "500" })}</p>
+              <p className="text-sm text-muted-foreground">{t("pricing.freeRateLimit", { count: "30" })}</p>
+            </div>
+            <Button className="w-full sm:w-auto" disabled={!billing || activatingFree || billing.freeTier.activated} onClick={() => void activateFree()}>
+              {activatingFree ? t("common.loading") : billing?.freeTier.activated ? t("billing.freeActivated") : t("billing.activateFree")}
+            </Button>
           </CardContent>
         </Card>
 

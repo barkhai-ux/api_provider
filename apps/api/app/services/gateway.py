@@ -22,6 +22,7 @@ AuthorizationStatus = Literal[
     "invalid",
     "expired",
     "revoked",
+    "payment_required",
     "rate_limited",
     "quota_exceeded",
     "endpoint_not_allowed",
@@ -73,7 +74,7 @@ class DemoAuthorization(BaseModel):
 class KeyDescription(BaseModel):
     """A key's static limits and scopes (no counters), for the in-process cache."""
 
-    status: Literal["ok", "invalid", "revoked", "expired"]
+    status: Literal["ok", "invalid", "revoked", "expired", "payment_required"]
     key_id: str | None = None
     user_id: str | None = None
     is_site_key: bool = False

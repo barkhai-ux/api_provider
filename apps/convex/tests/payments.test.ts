@@ -42,7 +42,7 @@ describe("Wire payments", () => {
     expect(calls[1]!.init.headers).toMatchObject({ "Content-Type": "application/json" });
     expect(JSON.parse(String(calls[1]!.init.body))).toEqual({});
     const billing = await alice.as.query(api.payments.myBilling, {});
-    expect(billing.payments[0]).toMatchObject({ id: checkout.paymentId, plan: "pro", status: "pending" });
+    expect(billing.payments).toEqual([]);
   });
 
   it("returns an unavailable state when Wire requires an operator connection", async () => {
@@ -83,6 +83,25 @@ describe("Wire payments", () => {
       paymentIntentId: "pi_1", status: "succeeded", amount: PLAN_WIRE_AMOUNT, currency: "MNT",
     })).toBe(false);
     expect((await alice.as.query(api.payments.myBilling, {})).planExpiresAt).toBe(paid.planExpiresAt);
+  });
+
+  it("shows completed payments even when newer checkouts are pending", async () => {
+    const t = setup();
+    const alice = await signedInUser(t, "alice@example.com");
+    await t.mutation(internal.payments._recordPending, {
+      userId: alice.userId, plan: "starter", paymentIntentId: "paid-intent",
+    });
+    await t.mutation(internal.payments._settle, {
+      paymentIntentId: "paid-intent", status: "succeeded", amount: PLAN_WIRE_AMOUNT, currency: "MNT",
+    });
+    for (let i = 0; i < 21; i++) {
+      await t.mutation(internal.payments._recordPending, {
+        userId: alice.userId, plan: "starter", paymentIntentId: `pending-${i}`,
+      });
+    }
+    const history = (await alice.as.query(api.payments.myBilling, {})).payments;
+    expect(history).toHaveLength(1);
+    expect(history[0]?.status).toBe("succeeded");
   });
 
   it("settles a webhook only after fetching a matching successful intent from Wire", async () => {

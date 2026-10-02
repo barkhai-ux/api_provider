@@ -38,6 +38,14 @@ export async function signedInUser(t: Harness, email: string) {
   return { userId, sessionId, as: t.withIdentity({ subject: `${userId}|${sessionId}` }) };
 }
 
+export async function signedInPaidUser(t: Harness, email: string) {
+  const user = await signedInUser(t, email);
+  await t.run((ctx) => ctx.db.patch(user.userId, {
+    plan: "starter", planExpiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+  }));
+  return user;
+}
+
 export async function insertKey(
   t: Harness,
   userId: Id<"users">,

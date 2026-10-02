@@ -183,7 +183,7 @@ A cron job prunes expired windows, tokens and old raw requests every 10 minutes.
 
 ## QPay payments through Wire
 
-The three paid plans are ₮1,000 each for 30 days. Checkout confirms a Wire PaymentIntent and displays its QPay QR and banking app links in the billing dialog. Payment status is verified with Wire before the plan is activated. A signed webhook updates the account promptly; a one-minute reconciliation job checks pending payments if a webhook is delayed. Renewals are manual, and request allowances reset at the start of each UTC month. Billing history shows completed payments only.
+Accounts can activate a one-time Free tier with 500 total test requests. API keys can be created and used while free requests remain or a paid plan is active; otherwise existing keys are paused. The three paid plans are ₮1,000 each for 30 days. Checkout confirms a Wire PaymentIntent and displays its QPay QR in the billing dialog. Payment status is verified with Wire before the plan is activated. A signed webhook updates the account promptly; a one-minute reconciliation job checks pending payments if a webhook is delayed. Renewals are manual, and paid request allowances reset at the start of each UTC month. Billing history shows completed payments only.
 
 To enable checkout after the Wire project is ready:
 

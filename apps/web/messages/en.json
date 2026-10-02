@@ -164,6 +164,10 @@
       "title": "API keys",
       "subtitle": "Keys authenticate your requests. Send one in the Authorization header: Bearer YOUR_API_KEY.",
       "create": "Create API key",
+      "choosePlan": "Choose a plan",
+      "requiresPlanTitle": "Choose a plan to get an API key",
+      "requiresPlanDescription": "Activate the free testing tier or a paid plan to create and use API keys.",
+      "keysPaused": "Your API keys are paused. Activate the free testing tier or a paid plan to use them again.",
       "colName": "Name",
       "colKey": "API key",
       "colEndpoints": "Endpoints",
@@ -199,23 +203,27 @@
       "badge": "API v1",
       "title": "Location APIs for Mongolia",
       "subtitle": "Search places, turn coordinates into addresses and calculate routes with one API key. Built on local data, in Latin and Cyrillic.",
-      "getStarted": "Get started for free",
+      "getStarted": "Create an account",
       "readDocs": "Read the docs"
     },
     "cta": {
       "title": "Start building today",
-      "subtitle": "Create an account, get a key and make your first request.",
-      "getStarted": "Get started for free",
+      "subtitle": "Create an account, choose a plan and make your first request.",
+      "getStarted": "Create an account",
       "apiReference": "API reference"
     }
   },
   "billing": {
     "title": "Billing",
-    "subtitle": "Choose a plan and pay securely with QPay in your banking app.",
+    "subtitle": "Activate a free testing tier or pay securely with QPay for a paid plan.",
     "currentPlan": "Current plan",
     "activeUntil": "{plan} active until {date}",
-    "freePlan": "Free plan · 1,000 usage units per UTC month",
-    "renewalNote": "A payment adds 30 days of access. Plans do not renew automatically. Request allowances reset on the first day of each UTC month.",
+    "freePlan": "No active plan · activate the free tier or choose a paid plan to use API keys",
+    "freeActive": "Free testing tier · {remaining} of {total} requests remaining",
+    "activateFree": "Activate free tier",
+    "freeActivated": "Free tier activated",
+    "freeActivationError": "Could not activate the free tier. Try again.",
+    "renewalNote": "Paid plans last 30 days and do not renew automatically. Paid request allowances reset on the first day of each UTC month. The 500 free test requests do not reset.",
     "perPeriod": "/ 30 days",
     "opening": "Opening checkout…",
     "payWithQpay": "Pay with QPay",
@@ -239,9 +247,12 @@
   "pricing": {
     "eyebrow": "Simple pricing",
     "title": "A plan for every scale",
-    "subtitle": "Start free, then grow without changing your integration. Every plan includes the same stable API and clear monthly limits.",
-    "plansHeading": "30-day plans",
+    "subtitle": "Start with 500 free test requests or choose a paid plan. Every tier uses the same API.",
+    "plansHeading": "API plans",
     "perMonth": "/ 30 days",
+    "freePeriod": "one time",
+    "freeRequests": "{count} test requests total",
+    "freeRateLimit": "Up to {count} requests/minute",
     "custom": "Let’s talk",
     "requests": "{count} requests / month",
     "customRequests": "Custom monthly volume",
@@ -249,8 +260,12 @@
     "customRateLimit": "Rate limits sized for your workload",
     "getStarted": "Get started",
     "contactUs": "Contact us",
-    "note": "Each plan costs ₮1,000 for 30 days. Renew manually when it expires. Monthly request limits reset on the first day of each UTC month.",
+    "note": "The free tier includes 500 test requests per account, once. Each paid plan costs ₮1,000 for 30 days. Renew paid access manually when it expires. Paid monthly request limits reset on the first day of each UTC month.",
     "plans": {
+      "free": {
+        "name": "Free",
+        "description": "Try the APIs with 500 requests before choosing a paid plan."
+      },
       "starter": {
         "name": "Starter",
         "description": "For prototypes, personal projects and your first production integration."
@@ -287,8 +302,8 @@
       "technicalContact": "Dedicated technical contact"
     },
     "cta": {
-      "title": "Start building for free",
-      "subtitle": "Create an account, get an API key and send your first request in minutes.",
+      "title": "Start building with a plan",
+      "subtitle": "Create an account, choose a plan and get an API key in minutes.",
       "readDocs": "Read the docs"
     }
   }

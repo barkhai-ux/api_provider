@@ -5,7 +5,7 @@ import { action, internalMutation, internalQuery, mutation, type MutationCtx, qu
 import { hmacSha256Hex } from "./lib/crypto";
 import { writeAudit } from "./lib/audit";
 import { API_ENDPOINTS, type ApiEndpoint, apiEndpointValidator, normalizeEndpoints } from "./lib/endpoints";
-import { defaultRateLimitPerMinute, requireEnv } from "./lib/env";
+import { requireEnv } from "./lib/env";
 import {
   MAX_ACTIVE_KEYS_PER_USER,
   MAX_PLAYGROUND_TOKENS_PER_KEY,
@@ -20,6 +20,7 @@ import {
   maskedKey,
 } from "./lib/keys";
 import { requireUserId } from "./lib/session";
+import { activePlan, FREE_RATE_LIMIT_PER_MINUTE, hasKeyAccess, PAID_PLANS } from "./lib/plans";
 import { DAY_MS, utcDay, windowStart } from "./lib/time";
 
 const USAGE_LOOKBACK_DAYS = 30;
@@ -39,7 +40,7 @@ export type ApiKeySummary = {
   requestsThisMinute: number;
 };
 
-function summarize(key: Doc<"apiKeys">, requests: number, thisMinute: number): ApiKeySummary {
+function summarize(key: Doc<"apiKeys">, requests: number, thisMinute: number, rateLimitPerMinute: number): ApiKeySummary {
   return {
     id: key._id,
     name: key.name,
@@ -49,7 +50,7 @@ function summarize(key: Doc<"apiKeys">, requests: number, thisMinute: number): A
     lastUsedAt: key.lastUsedAt ?? null,
     expiresAt: key.expiresAt ?? null,
     revokedAt: key.revokedAt ?? null,
-    rateLimitPerMinute: key.rateLimitPerMinute ?? defaultRateLimitPerMinute(),
+    rateLimitPerMinute,
     requestsLast30Days: requests,
     requestsThisMinute: thisMinute,
   };
@@ -60,6 +61,10 @@ export const list = query({
   args: {},
   handler: async (ctx): Promise<ApiKeySummary[]> => {
     const userId = await requireUserId(ctx);
+    const user = await ctx.db.get(userId);
+    const plan = user ? activePlan(user) : null;
+    const rateLimitPerMinute = plan ? PAID_PLANS[plan].requestsPerMinute
+      : user && hasKeyAccess(user) ? FREE_RATE_LIMIT_PER_MINUTE : 0;
     const keys = await ctx.db
       .query("apiKeys")
       .withIndex("by_user", (q) => q.eq("userId", userId))
@@ -79,7 +84,7 @@ export const list = query({
           .query("rateLimitWindows")
           .withIndex("by_bucket_window", (q) => q.eq("bucket", `key:${key._id}`).eq("windowStart", currentWindow))
           .unique();
-        return summarize(key, totals.get(key._id) ?? 0, window?.count ?? 0);
+        return summarize(key, totals.get(key._id) ?? 0, window?.count ?? 0, rateLimitPerMinute);
       }),
     );
     return summaries.sort((a, b) => {
@@ -107,6 +112,8 @@ export const insertKey = internalMutation({
     expiresAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user || !hasKeyAccess(user)) throw new ConvexError("Activate the free tier or a paid plan to create API keys.");
     const all = await ctx.db
       .query("apiKeys")
       .withIndex("by_user", (q) => q.eq("userId", args.userId))
@@ -213,6 +220,8 @@ export const replaceSecret = internalMutation({
   args: { keyId: v.id("apiKeys"), userId: v.id("users"), keyPrefix: v.string(), keyHash: v.string() },
   handler: async (ctx, { keyId, userId, keyPrefix: prefix, keyHash }) => {
     const key = await requireOwnedKey(ctx, keyId, userId);
+    const user = await ctx.db.get(userId);
+    if (!user || !hasKeyAccess(user)) throw new ConvexError("Activate the free tier or a paid plan to regenerate API keys.");
     if (key.revokedAt !== undefined) throw new ConvexError("A revoked key cannot be regenerated.");
     if (key.expiresAt !== undefined && key.expiresAt <= Date.now()) {
       throw new ConvexError("This key has expired. Create a new key instead.");
@@ -250,6 +259,8 @@ export const regenerate = action({
 export const insertPlaygroundToken = internalMutation({
   args: { tokenHash: v.string(), apiKeyId: v.id("apiKeys"), userId: v.id("users"), expiresAt: v.number() },
   handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user || !hasKeyAccess(user)) throw new ConvexError("Activate the free tier or a paid plan to use API keys.");
     // Keep only the newest few tokens per key, so the endpoint cannot be used
     // to fill the table.
     const existing = await ctx.db

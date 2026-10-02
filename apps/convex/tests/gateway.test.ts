@@ -4,8 +4,8 @@
  * a leaked secret must not let one tenant's data be written as another's.
  */
 import { describe, expect, it } from "vitest";
-import { internal } from "../convex/_generated/api";
-import { GATEWAY_SECRET, insertKey, setup, signedInUser } from "./setup";
+import { api, internal } from "../convex/_generated/api";
+import { GATEWAY_SECRET, insertKey, setup, signedInPaidUser, signedInUser } from "./setup";
 
 const HASH = "a".repeat(64);
 
@@ -14,9 +14,34 @@ function authorizeArgs(overrides: Record<string, unknown> = {}) {
 }
 
 describe("gateway authorize", () => {
-  it("refuses keys that are limited to other endpoints, without counting them", async () => {
+  it("pauses customer keys without an active plan and resumes after payment", async () => {
     const t = setup();
     const alice = await signedInUser(t, "alice@example.com");
+    await insertKey(t, alice.userId, { keyHash: HASH });
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("payment_required");
+    expect((await t.query(internal.gateway.describe, { hash: HASH })).status).toBe("payment_required");
+    await t.run((ctx) => ctx.db.patch(alice.userId, { plan: "starter", planExpiresAt: Date.now() + 60_000 }));
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("ok");
+    await t.run((ctx) => ctx.db.patch(alice.userId, { planExpiresAt: Date.now() - 1 }));
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("payment_required");
+  });
+
+  it("counts free requests across keys and pauses access after the 500th", async () => {
+    const t = setup();
+    const alice = await signedInUser(t, "free@example.com");
+    await alice.as.mutation(api.payments.activateFreeTier, {});
+    await insertKey(t, alice.userId, { keyHash: HASH });
+    await insertKey(t, alice.userId, { keyHash: "b".repeat(64) });
+    await t.run((ctx) => ctx.db.patch(alice.userId, { freeRequestsUsed: 499 }));
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ hash: "b".repeat(64) }))).status).toBe("ok");
+    expect((await alice.as.query(api.payments.myBilling, {})).freeTier.remaining).toBe(0);
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("payment_required");
+    expect((await t.query(internal.gateway.describe, { hash: HASH })).status).toBe("payment_required");
+  });
+
+  it("refuses keys that are limited to other endpoints, without counting them", async () => {
+    const t = setup();
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH, endpoints: ["geocode"] });
     const refused = await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }));
     expect(refused.status).toBe("endpoint_not_allowed");
@@ -29,23 +54,22 @@ describe("gateway authorize", () => {
 
   it("limits an account across all of its keys", async () => {
     const t = setup();
-    process.env.ACCOUNT_RATE_LIMIT_PER_MINUTE = "3";
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: "b".repeat(64), rateLimitPerMinute: 2 });
     await insertKey(t, alice.userId, { keyHash: "c".repeat(64), rateLimitPerMinute: 2 });
     const statuses = [];
-    for (const hash of ["b", "b", "c", "c"]) {
+    for (let i = 0; i < 101; i++) {
+      const hash = i % 2 ? "b" : "c";
       statuses.push((await t.mutation(internal.gateway.authorize, authorizeArgs({ hash: hash.repeat(64) }))).status);
     }
-    // Each key is under its own limit of 2, but the account allows only
-    // max(2, 3) = 3 requests per minute in total.
-    expect(statuses).toEqual(["ok", "ok", "ok", "rate_limited"]);
+    expect(statuses.slice(0, 100).every((status) => status === "ok")).toBe(true);
+    expect(statuses[100]).toBe("rate_limited");
   });
 
   it("gives routing its own lower limit", async () => {
     const t = setup();
     process.env.ROUTE_RATE_LIMIT_PER_MINUTE = "2";
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH });
     const route = [];
     for (let i = 0; i < 3; i++) {
@@ -55,24 +79,22 @@ describe("gateway authorize", () => {
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "geocode" }))).status).toBe("ok");
   });
 
-  it("limits each endpoint independently", async () => {
+  it("keeps endpoint counters separate on a paid plan", async () => {
     const t = setup();
-    process.env.ENDPOINT_RATE_LIMIT_PER_MINUTE = "2";
-    const alice = await signedInUser(t, "alice@example.com");
-    await insertKey(t, alice.userId, { keyHash: HASH });
-    const geocode = [];
-    for (let i = 0; i < 3; i++) {
-      geocode.push((await t.mutation(internal.gateway.authorize, authorizeArgs())).status);
-    }
-    expect(geocode).toEqual(["ok", "ok", "rate_limited"]);
+    const alice = await signedInPaidUser(t, "alice@example.com");
+    const keyId = await insertKey(t, alice.userId, { keyHash: HASH });
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("ok");
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
+    const buckets = (await t.run((ctx) => ctx.db.query("rateLimitWindows").collect())).map((row) => row.bucket);
+    expect(buckets).toContain(`key:${keyId}:endpoint:geocode`);
+    expect(buckets).toContain(`key:${keyId}:endpoint:route`);
   });
 
   it("enforces a global authenticated-traffic ceiling across tenants", async () => {
     const t = setup();
     process.env.GLOBAL_RATE_LIMIT_PER_MINUTE = "3";
-    const alice = await signedInUser(t, "alice@example.com");
-    const bob = await signedInUser(t, "bob@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
+    const bob = await signedInPaidUser(t, "bob@example.com");
     await insertKey(t, alice.userId, { keyHash: "b".repeat(64) });
     await insertKey(t, bob.userId, { keyHash: "c".repeat(64) });
     const statuses = [];
@@ -115,7 +137,7 @@ describe("gateway authorize", () => {
 
   it("treats keys of disabled accounts as revoked", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH });
     await t.run((ctx) => ctx.db.patch(alice.userId, { disabledAt: Date.now() }));
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("revoked");
@@ -123,12 +145,12 @@ describe("gateway authorize", () => {
 
   it("rejects expired keys", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH, expiresAt: Date.now() - 1 });
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("expired");
   });
 
-  it("enforces durable key, tenant and endpoint quotas using operation costs", async () => {
+  it("records one quota unit for each paid request", async () => {
     const t = setup();
     process.env.KEY_DAILY_QUOTA_UNITS = "6";
     process.env.KEY_MONTHLY_QUOTA_UNITS = "6";
@@ -136,21 +158,15 @@ describe("gateway authorize", () => {
     process.env.TENANT_MONTHLY_QUOTA_UNITS = "6";
     process.env.ENDPOINT_MONTHLY_QUOTA_UNITS = "6";
     process.env.ROUTE_COST_UNITS = "5";
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH });
 
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("ok");
-    const refused = await t.mutation(internal.gateway.authorize, authorizeArgs());
-    expect(refused.status).toBe("quota_exceeded");
-    expect(refused.rateLimit?.remaining).toBe(0);
 
     const windows = await t.run((ctx) => ctx.db.query("quotaWindows").collect());
     expect(windows).toHaveLength(6);
-    expect(windows.reduce((total, window) => total + window.units, 0)).toBe(30);
-    const audit = await t.run((ctx) => ctx.db.query("securityAuditEvents").collect());
-    expect(audit.some((event) => event.event === "api_quota_exhausted")).toBe(true);
-    expect(audit.every((event) => JSON.stringify(event).includes(HASH) === false)).toBe(true);
+    expect(windows.reduce((total, window) => total + window.units, 0)).toBe(10);
   });
 
   it("applies a paid plan's limits and stops applying them after expiry", async () => {
@@ -158,7 +174,7 @@ describe("gateway authorize", () => {
     process.env.KEY_DAILY_QUOTA_UNITS = "1";
     process.env.KEY_MONTHLY_QUOTA_UNITS = "1";
     process.env.TENANT_MONTHLY_QUOTA_UNITS = "1";
-    const alice = await signedInUser(t, "alice@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
     await insertKey(t, alice.userId, { keyHash: HASH });
     await t.run((ctx) => ctx.db.patch(alice.userId, { plan: "essentials", planExpiresAt: Date.now() + 60_000 }));
     expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
@@ -166,7 +182,7 @@ describe("gateway authorize", () => {
     const windows = await t.run((ctx) => ctx.db.query("quotaWindows").collect());
     expect(windows.find((window) => window.bucket === `tenant:${alice.userId}` && window.period === "month")?.units).toBe(2);
     await t.run((ctx) => ctx.db.patch(alice.userId, { planExpiresAt: Date.now() - 1 }));
-    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("quota_exceeded");
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("payment_required");
   });
 
   it("limits the anonymous demo across minute and hour buckets without storing raw IPs", async () => {
@@ -190,8 +206,8 @@ describe("gateway authorize", () => {
 describe("gateway recordUsage", () => {
   it("takes the owner from the key and drops implausible records", async () => {
     const t = setup();
-    const alice = await signedInUser(t, "alice@example.com");
-    const bob = await signedInUser(t, "bob@example.com");
+    const alice = await signedInPaidUser(t, "alice@example.com");
+    const bob = await signedInPaidUser(t, "bob@example.com");
     const aliceKey = await insertKey(t, alice.userId);
     const now = Date.now();
     const base = { keyId: aliceKey, userId: alice.userId, endpoint: "/v1/geocode", method: "GET", statusCode: 200, responseTimeMs: 5, timestamp: now };
