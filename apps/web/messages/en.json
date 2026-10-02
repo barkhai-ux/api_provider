@@ -231,6 +231,8 @@
     "paymentUnavailable": "QPay payments are temporarily unavailable. Please try again later.",
     "dialogTitle": "Pay with QPay",
     "dialogDescription": "Scan the QR code with your banking app to pay for {plan}.",
+    "hostedCheckoutDescription": "Continue to Wire's secure payment page to pay for {plan}.",
+    "hostedCheckoutInstruction": "Wire will show the official QPay QR code and links for supported banking apps.",
     "qrAlt": "QPay payment QR code",
     "scanInstruction": "Scan with any QPay supported banking app",
     "openPaymentPage": "Open payment page",

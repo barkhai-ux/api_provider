@@ -10,6 +10,12 @@ export type WireIntent = {
   next_action?: unknown;
 };
 
+export type WireCheckoutSession = {
+  id: string;
+  url: string;
+  payment_intent: string;
+};
+
 export class WireApiError extends Error {
   constructor(
     readonly status: number,

@@ -231,6 +231,8 @@
     "paymentUnavailable": "QPay төлбөр одоогоор боломжгүй байна. Дараа дахин оролдоно уу.",
     "dialogTitle": "QPay-ээр төлөх",
     "dialogDescription": "{plan} багцын төлбөрийг банкны аппликейшнаараа QR код уншуулж төлнө үү.",
+    "hostedCheckoutDescription": "{plan} багцын төлбөрийг Wire-ийн аюулгүй төлбөрийн хуудсаар үргэлжлүүлнэ үү.",
+    "hostedCheckoutInstruction": "Wire албан ёсны QPay QR код болон дэмжигдсэн банкны аппликейшны холбоосуудыг харуулна.",
     "qrAlt": "QPay төлбөрийн QR код",
     "scanInstruction": "QPay дэмждэг банкны аппликейшнаар уншуулна уу",
     "openPaymentPage": "Төлбөрийн хуудас нээх",

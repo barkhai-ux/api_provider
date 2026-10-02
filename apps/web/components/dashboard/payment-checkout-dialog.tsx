@@ -79,7 +79,9 @@ export function PaymentCheckoutDialog({ checkout, status, onClose, priceMnt }: {
           <DialogDescription>
             {succeeded ? t("billing.paymentCompleteDescription")
               : failed ? t("billing.paymentFailed")
-                : t("billing.dialogDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })}
+                : payment.redirectUrl && !payment.qrText && !payment.qrImage
+                  ? t("billing.hostedCheckoutDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })
+                  : t("billing.dialogDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })}
           </DialogDescription>
         </DialogHeader>
 
@@ -102,10 +104,14 @@ export function PaymentCheckoutDialog({ checkout, status, onClose, priceMnt }: {
                 <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-border/70">
                   <img src={payment.qrImage} alt={t("billing.qrAlt")} className="size-52 object-contain" />
                 </div>
+              ) : payment.redirectUrl ? (
+                <p className="rounded-lg bg-muted p-4 text-center text-muted-foreground">{t("billing.hostedCheckoutInstruction")}</p>
               ) : (
                 <p className="rounded-lg bg-muted p-4 text-center text-muted-foreground">{t("billing.noPaymentInstructions")}</p>
               )}
-              <p className="max-w-64 text-center text-sm text-muted-foreground">{t("billing.scanInstruction")}</p>
+              {(payment.qrText || payment.qrImage) && (
+                <p className="max-w-64 text-center text-sm text-muted-foreground">{t("billing.scanInstruction")}</p>
+              )}
             </div>
             {payment.redirectUrl && (
               <Button variant="outline" asChild>

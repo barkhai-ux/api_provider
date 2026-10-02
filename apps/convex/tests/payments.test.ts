@@ -7,20 +7,21 @@ import { setup, signedInUser } from "./setup";
 afterEach(() => {
   vi.unstubAllGlobals();
   delete process.env.WIREPAYMENT_SECRET_KEY;
+  delete process.env.SITE_URL;
 });
 
 describe("Wire payments", () => {
-  it("creates an account-bound ₮1,000 QPay payment", async () => {
+  it("creates an account-bound ₮1,000 Wire hosted checkout", async () => {
     const t = setup();
     const alice = await signedInUser(t, "alice@example.com");
     process.env.WIREPAYMENT_SECRET_KEY = "sk_test_example";
+    process.env.SITE_URL = "https://developers.ubhub.mn";
     const calls: { url: string; init: RequestInit }[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
       calls.push({ url, init });
       if (calls.length === 1) return Response.json({ id: "pi_test", amount: PLAN_WIRE_AMOUNT, currency: "MNT", status: "requires_payment_method" });
       return Response.json({
-        id: "pi_test", amount: PLAN_WIRE_AMOUNT, currency: "MNT", status: "requires_action",
-        next_action: { type: "qr", qr: { text: "qpay-test", deeplinks: [] } },
+        id: "cs_test", payment_intent: "pi_test", url: "https://pay.wire.mn/c/test-token",
       });
     }));
 
@@ -29,18 +30,24 @@ describe("Wire payments", () => {
     });
     expect(checkout.status).toBe("ready");
     if (checkout.status !== "ready") throw new Error("Expected ready checkout");
-    expect(checkout.nextAction).toEqual({ type: "qr", qr: { text: "qpay-test", deeplinks: [] } });
+    expect(checkout.nextAction).toEqual({
+      redirect_to_url: { url: "https://pay.wire.mn/c/test-token" },
+    });
     expect(JSON.parse(String(calls[0]!.init.body))).toMatchObject({
       amount: 1_000, currency: "MNT", allowed_operators: ["sandbox"],
       metadata: { userId: alice.userId, plan: "pro" },
     });
     expect(calls.map((call) => call.init.headers)).toEqual([
       expect.objectContaining({ "Idempotency-Key": "plan-4b52e335-f398-4f3e-8887-179130740572" }),
-      expect.objectContaining({ "Idempotency-Key": "confirm-4b52e335-f398-4f3e-8887-179130740572" }),
+      expect.objectContaining({ "Idempotency-Key": "checkout-4b52e335-f398-4f3e-8887-179130740572" }),
     ]);
-    expect(calls[1]!.url).toBe("https://api.wire.mn/v1/payment_intents/pi_test/confirm");
+    expect(calls[1]!.url).toBe("https://api.wire.mn/v1/checkout/sessions");
     expect(calls[1]!.init.headers).toMatchObject({ "Content-Type": "application/json" });
-    expect(JSON.parse(String(calls[1]!.init.body))).toEqual({});
+    expect(JSON.parse(String(calls[1]!.init.body))).toEqual({
+      payment_intent: "pi_test",
+      success_url: "https://developers.ubhub.mn/dashboard/billing",
+      cancel_url: "https://developers.ubhub.mn/dashboard/billing",
+    });
     const billing = await alice.as.query(api.payments.myBilling, {});
     expect(billing.payments).toEqual([]);
   });
