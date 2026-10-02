@@ -21,6 +21,8 @@ from app.services.geo.base import (
 
 logger = logging.getLogger(__name__)
 
+QueryValue = str | int | float | bool | None
+
 
 def _coordinate(value: Any) -> Coordinate | None:
     try:
@@ -41,7 +43,7 @@ class NominatimProvider:
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout_seconds
 
-    async def _get(self, path: str, params: dict[str, object]) -> Any:
+    async def _get(self, path: str, params: dict[str, QueryValue]) -> Any:
         try:
             response = await self._http.get(
                 f"{self._base_url}{path}",
@@ -109,7 +111,8 @@ class NominatimProvider:
         if not isinstance(row, dict) or not row.get("display_name"):
             return None
         location = _coordinate((row.get("lon"), row.get("lat"))) or point
-        address = row.get("address") if isinstance(row.get("address"), dict) else {}
+        address_value = row.get("address")
+        address: dict[str, Any] = address_value if isinstance(address_value, dict) else {}
         name = row.get("name") or address.get("amenity") or address.get("road")
         return AddressMatch(
             formatted=str(row["display_name"]),

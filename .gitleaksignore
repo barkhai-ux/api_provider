@@ -1,2 +1,4 @@
 # False positive: the documentation used the literal placeholder `geo_REDACTED`.
 9f89edd58c50963f2f410b5e81dc335aa81fba1e:docs/security/api-security.md:curl-auth-header:76
+# False positive: a deterministic UUID used as an idempotency key in a test.
+134c604284e400d8f946818e01b41f809cc8fe6f:apps/convex/tests/payments.test.ts:generic-api-key:38

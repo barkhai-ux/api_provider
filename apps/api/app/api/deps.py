@@ -93,7 +93,11 @@ def _too_many_failures(retry_after: int) -> ApiError:
 
 def _refusal(status: str, kind: str) -> ApiError:
     if status == "payment_required":
-        return ApiError(402, ErrorCode.PAYMENT_REQUIRED, "Activate the free tier or a paid plan to use API keys.")
+        return ApiError(
+            402,
+            ErrorCode.PAYMENT_REQUIRED,
+            "Activate the free tier or a paid plan to use API keys.",
+        )
     if status == "revoked":
         return ApiError(403, ErrorCode.API_KEY_REVOKED, "This API key has been revoked.")
     if status == "expired":

@@ -18,7 +18,10 @@ FROM python:3.13-slim AS runtime
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
-RUN python -m pip uninstall --yes --quiet pip \
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes \
+ && rm -rf /var/lib/apt/lists/* \
+ && python -m pip uninstall --yes --quiet pip \
  && rm -rf /usr/local/lib/python3.13/ensurepip \
  && groupadd --system app && useradd --system --gid app --no-create-home --home /nonexistent app
 WORKDIR /app

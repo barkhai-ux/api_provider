@@ -38,7 +38,10 @@ FROM base AS runner
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0
 # The runtime needs only `node`: remove the package managers bundled with the
 # base image (they carry their own advisories and are an attack tool).
-RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive apt-get upgrade --yes \
+ && rm -rf /var/lib/apt/lists/* \
+ && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
       /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 # Application files are owned by root and read-only for the node user; only
 # the Next.js cache directory is writable (mount a tmpfs there when the root

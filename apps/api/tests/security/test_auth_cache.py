@@ -23,15 +23,17 @@ from tests.test_api import PLACE_FIELDS, PLACES
 
 @pytest.fixture
 def cached_settings(settings: Settings) -> Settings:
-    return settings.model_copy(update={
-        "auth_cache_ttl_seconds": 60.0,
-        "arcgis_client_id": None,
-        "arcgis_client_secret": None,
-        "arcgis_username": None,
-        "arcgis_password": None,
-        "arcgis_token": None,
-        "arcgis_geocode_server": None,
-    })
+    return settings.model_copy(
+        update={
+            "auth_cache_ttl_seconds": 60.0,
+            "arcgis_client_id": None,
+            "arcgis_client_secret": None,
+            "arcgis_username": None,
+            "arcgis_password": None,
+            "arcgis_token": None,
+            "arcgis_geocode_server": None,
+        }
+    )
 
 
 @pytest.fixture
@@ -98,7 +100,8 @@ async def test_unpaid_key_is_paused_then_resumes_after_payment(
     assert response.json()["error"]["code"] == "PAYMENT_REQUIRED"
     convex.add_key(key)
     arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
-    assert (await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))).status_code == 200
+    response = await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))
+    assert response.status_code == 200
     assert len(convex.authorize_calls) == 2
 
 
