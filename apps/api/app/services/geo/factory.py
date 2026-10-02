@@ -49,6 +49,7 @@ from app.services.geo.base import (
 )
 from app.services.geo.geocoding import GeocodingService
 from app.services.geo.routing import RoutingService
+from app.services.osm.providers import NominatimProvider, OSRMProvider
 
 
 class UnconfiguredProvider:
@@ -90,6 +91,7 @@ class GeoServices:
     routing: RoutingService
     routing_provider: RoutingProvider
     arcgis_client: ArcGISFeatureServerClient
+    http_client: httpx.AsyncClient
     # Data sources checked by /health/ready: name -> (kind, url).
     data_sources: dict[str, tuple[str, str]]
 
@@ -189,19 +191,25 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         else None
     )
 
-    geocoding_provider: GeocodingProvider = (
-        ArcGISLocatorGeocodingProvider(client, locator)
-        if locator
-        else ArcGISGeocodingProvider(
+    nominatim = (
+        NominatimProvider(http, settings.nominatim_url, settings.arcgis_timeout_seconds)
+        if settings.nominatim_url
+        else None
+    )
+    if settings.geocoding_provider == "nominatim":
+        geocoding_provider: GeocodingProvider = nominatim or UnconfiguredProvider("geocoding")
+    elif locator:
+        geocoding_provider = ArcGISLocatorGeocodingProvider(client, locator)
+    elif places_url:
+        geocoding_provider = ArcGISGeocodingProvider(
             client,
             places_url,
             places_fields,
             candidate_limit=settings.geocode_candidate_limit,
             default_address=default_address or None,
         )
-        if places_url
-        else UnconfiguredProvider("geocoding")
-    )
+    else:
+        geocoding_provider = UnconfiguredProvider("geocoding")
 
     feature_reverse: ReverseGeocodingProvider | None = (
         ArcGISReverseGeocodingProvider(
@@ -232,13 +240,15 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         )
     if feature_reverse:
         reverse_chain.append(feature_reverse)
-    reverse_provider: ReverseGeocodingProvider
-    if len(reverse_chain) > 1:
-        reverse_provider = ChainedReverseGeocodingProvider(reverse_chain)
-    elif reverse_chain:
-        reverse_provider = reverse_chain[0]
-    else:
-        reverse_provider = UnconfiguredProvider("reverse geocoding")
+    if settings.geocoding_provider == "nominatim":
+        reverse_provider: ReverseGeocodingProvider = nominatim or UnconfiguredProvider("reverse geocoding")
+    elif settings.geocoding_provider == "arcgis":
+        if len(reverse_chain) > 1:
+            reverse_provider = ChainedReverseGeocodingProvider(reverse_chain)
+        elif reverse_chain:
+            reverse_provider = reverse_chain[0]
+        else:
+            reverse_provider = UnconfiguredProvider("reverse geocoding")
 
     profiles = build_travel_profiles(
         driving_speeds=settings.routing_driving_speeds_kmh,
@@ -250,6 +260,7 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         use_data_speed=settings.arcgis_roads_speed_field is not None,
     )
     route_service = settings.arcgis_route_service.rstrip("/") if settings.arcgis_route_service else None
+    use_osrm = settings.routing_provider == "osrm"
     use_network_analyst = settings.routing_provider == "arcgis_network_analyst" or (
         settings.routing_provider == "auto" and route_service is not None
     )
@@ -279,7 +290,16 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         else UnconfiguredProvider("routing")
     )
     routing_provider: RoutingProvider
-    if use_network_analyst and route_service:
+    if use_osrm and settings.osrm_driving_url and settings.osrm_walking_url:
+        routing_provider = OSRMProvider(
+            http,
+            settings.osrm_driving_url,
+            settings.osrm_walking_url,
+            settings.arcgis_timeout_seconds,
+        )
+    elif use_osrm:
+        routing_provider = UnconfiguredProvider("routing")
+    elif use_network_analyst and route_service:
         routing_provider = ArcGISNetworkAnalystRoutingProvider(
             client,
             NetworkAnalystConfig(
@@ -300,15 +320,24 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         routing_provider = road_network
 
     data_sources: dict[str, tuple[str, str]] = {}
-    if locator:
-        data_sources["geocoding"] = ("locator", locator.url)
-        data_sources["reverse_geocoding"] = ("locator", locator.url)
-    else:
-        if places_url:
-            data_sources["geocoding"] = ("layer", places_url)
-        if addresses_url:
-            data_sources["reverse_geocoding"] = ("layer", addresses_url)
-    if use_network_analyst and route_service:
+    if settings.geocoding_provider == "nominatim" and settings.nominatim_url:
+        data_sources["geocoding"] = ("http", f"{settings.nominatim_url.rstrip('/')}/status")
+        data_sources["reverse_geocoding"] = ("http", f"{settings.nominatim_url.rstrip('/')}/status")
+    elif settings.geocoding_provider == "arcgis":
+        if locator:
+            data_sources["geocoding"] = ("locator", locator.url)
+            data_sources["reverse_geocoding"] = ("locator", locator.url)
+        else:
+            if places_url:
+                data_sources["geocoding"] = ("layer", places_url)
+            if addresses_url:
+                data_sources["reverse_geocoding"] = ("layer", addresses_url)
+    if use_osrm and settings.osrm_driving_url and settings.osrm_walking_url:
+        data_sources["routing"] = (
+            "http",
+            f"{settings.osrm_driving_url.rstrip('/')}/route/v1/driving/106.905,47.918;106.915,47.918",
+        )
+    elif use_network_analyst and route_service:
         data_sources["routing"] = ("service", route_service)
     elif roads_url:
         data_sources["routing"] = ("layer", roads_url)
@@ -321,5 +350,6 @@ def build_geo_services(settings: Settings, http: httpx.AsyncClient) -> GeoServic
         routing=RoutingService(routing_provider, settings.routing_max_distance_km),
         routing_provider=routing_provider,
         arcgis_client=client,
+        http_client=http,
         data_sources=data_sources,
     )

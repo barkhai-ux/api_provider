@@ -115,12 +115,9 @@ class Settings(BaseSettings):
     # Seconds a hash that Convex did not recognise is remembered, so repeating
     # the same bad key does not cause another lookup.
     invalid_key_cache_seconds: float = Field(default=30.0, ge=0)
-    # In-process authorization cache. When > 0, a valid key's limits and scopes
-    # are cached for this many seconds and rate limiting is enforced locally, so
-    # most requests skip the Convex round-trip (~200ms). Rate limits then apply
-    # per gateway instance, and revocation/limit changes lag by up to this TTL.
-    # 0 disables it (every request authorizes in Convex). Playground tokens are
-    # never cached. Keep small if you run more than one instance.
+    # In-process authorization cache for the website's site key only. Customer
+    # keys always authorize in Convex so paid-plan quotas cannot be bypassed.
+    # 0 disables caching entirely. Keep small if you run more than one instance.
     auth_cache_ttl_seconds: float = Field(default=0.0, ge=0)
 
     # --- Anonymous demo ----------------------------------------------------
@@ -146,6 +143,10 @@ class Settings(BaseSettings):
     cache_geocode_max_entries: int = Field(default=10_000, ge=1)
 
     # --- ArcGIS (internal data sources) ------------------------------------
+    geocoding_provider: Literal["arcgis", "nominatim"] = "arcgis"
+    nominatim_url: str | None = None
+    osrm_driving_url: str | None = None
+    osrm_walking_url: str | None = None
     # A GeocodeServer (locator). When set it answers /v1/geocode and
     # /v1/reverse-geocode; FeatureServer layers then only serve as fallbacks.
     arcgis_geocode_server: str | None = None
@@ -212,7 +213,7 @@ class Settings(BaseSettings):
 
     # --- Routing -------------------------------------------------------------
     # auto: the route service if ARCGIS_ROUTE_SERVICE is set, else the road layer.
-    routing_provider: Literal["auto", "arcgis_network_analyst", "arcgis_road_network"] = "auto"
+    routing_provider: Literal["auto", "arcgis_network_analyst", "arcgis_road_network", "osrm"] = "auto"
     # Travel-mode names on the route service; empty = pick by type
     # (AUTOMOBILE for driving, WALK for walking), preferring time-based modes.
     routing_na_driving_travel_mode: str | None = None
@@ -238,6 +239,9 @@ class Settings(BaseSettings):
     @field_validator(
         "arcgis_geocode_server",
         "arcgis_route_service",
+        "nominatim_url",
+        "osrm_driving_url",
+        "osrm_walking_url",
         "arcgis_client_id",
         "arcgis_username",
         "arcgis_token_url",
@@ -315,6 +319,9 @@ class Settings(BaseSettings):
             "ARCGIS_REVERSE_GEOCODING_FEATURE_SERVER": self.arcgis_reverse_geocoding_feature_server,
             "ARCGIS_ROUTING_FEATURE_SERVER": self.arcgis_routing_feature_server,
             "ARCGIS_TOKEN_URL": self.arcgis_token_url,
+            "NOMINATIM_URL": self.nominatim_url,
+            "OSRM_DRIVING_URL": self.osrm_driving_url,
+            "OSRM_WALKING_URL": self.osrm_walking_url,
         }
         for name, url in upstreams.items():
             if url:

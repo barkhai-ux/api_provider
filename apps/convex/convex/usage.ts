@@ -2,12 +2,9 @@ import { paginationOptsValidator } from "convex/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
-import {
-  defaultRateLimitPerMinute,
-  tenantDailyQuotaUnits,
-  tenantMonthlyQuotaUnits,
-} from "./lib/env";
+import { defaultRateLimitPerMinute } from "./lib/env";
 import { requireUserId } from "./lib/session";
+import { activePlan, FREE_MONTHLY_REQUESTS, PAID_PLANS } from "./lib/plans";
 import { DAY_MS, utcDay, utcMonthStartDay } from "./lib/time";
 
 const MAX_SERIES_DAYS = 90;
@@ -21,6 +18,9 @@ export const summary = query({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUserId(ctx);
+    const user = await ctx.db.get(userId);
+    const plan = user ? activePlan(user) : null;
+    const limits = plan ? PAID_PLANS[plan] : null;
     const now = Date.now();
     const today = utcDay(now);
     const rows = await ctx.db
@@ -61,12 +61,12 @@ export const summary = query({
     return {
       today: todayCounts,
       month: monthCounts,
-      rateLimitPerMinute: defaultRateLimitPerMinute(),
+      rateLimitPerMinute: limits?.requestsPerMinute ?? defaultRateLimitPerMinute(),
       activeKeys: active.length,
       totalKeys: keys.length,
       quota: {
-        daily: { used: dailyQuota?.units ?? 0, limit: tenantDailyQuotaUnits() },
-        monthly: { used: monthlyQuota?.units ?? 0, limit: tenantMonthlyQuotaUnits() },
+        daily: { used: dailyQuota?.units ?? 0, limit: limits?.monthlyRequests ?? FREE_MONTHLY_REQUESTS },
+        monthly: { used: monthlyQuota?.units ?? 0, limit: limits?.monthlyRequests ?? FREE_MONTHLY_REQUESTS },
       },
     };
   },

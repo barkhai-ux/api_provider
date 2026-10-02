@@ -26,6 +26,7 @@ import {
   tenantMonthlyQuotaUnits,
 } from "./lib/env";
 import { MINUTE_MS, utcDay, windowStart } from "./lib/time";
+import { activePlan, FREE_MONTHLY_REQUESTS, PAID_PLANS, type PaidPlan } from "./lib/plans";
 
 type RateLimitState = { limit: number; remaining: number; reset: number; allowed: boolean };
 
@@ -134,20 +135,23 @@ async function consumeCustomerQuotas(
   key: Doc<"apiKeys">,
   endpoint: string | undefined,
   now: number,
+  plan: PaidPlan | null,
 ): Promise<RateLimitState> {
-  const cost = endpointCost(endpoint);
+  const cost = plan ? 1 : endpointCost(endpoint);
+  const planQuota = plan ? PAID_PLANS[plan].monthlyRequests : FREE_MONTHLY_REQUESTS;
+  const bounded = (configured: number) => plan ? planQuota : Math.min(planQuota, configured);
   const endpointName = API_ENDPOINTS.includes(endpoint as (typeof API_ENDPOINTS)[number])
     ? endpoint!
     : "unknown";
   const specs: { bucket: string; period: "day" | "month"; limit: number }[] = [
-    { bucket: `key:${key._id}`, period: "day", limit: keyDailyQuotaUnits() },
-    { bucket: `key:${key._id}`, period: "month", limit: keyMonthlyQuotaUnits() },
-    { bucket: `tenant:${key.userId}`, period: "day", limit: tenantDailyQuotaUnits() },
-    { bucket: `tenant:${key.userId}`, period: "month", limit: tenantMonthlyQuotaUnits() },
+    { bucket: `key:${key._id}`, period: "day", limit: bounded(keyDailyQuotaUnits()) },
+    { bucket: `key:${key._id}`, period: "month", limit: bounded(keyMonthlyQuotaUnits()) },
+    { bucket: `tenant:${key.userId}`, period: "day", limit: bounded(tenantDailyQuotaUnits()) },
+    { bucket: `tenant:${key.userId}`, period: "month", limit: bounded(tenantMonthlyQuotaUnits()) },
     {
       bucket: `tenant:${key.userId}:endpoint:${endpointName}`,
       period: "month",
-      limit: endpointMonthlyQuotaUnits(),
+      limit: bounded(endpointMonthlyQuotaUnits()),
     },
   ];
   const checked = [];
@@ -304,6 +308,8 @@ export const authorize = internalMutation({
     }
 
     const isSiteKey = key.isSiteKey === true && !viaPlayground;
+    const plan = isSiteKey ? null : activePlan(owner, now);
+    const planRate = plan ? PAID_PLANS[plan].requestsPerMinute : null;
     const principal = {
       keyId: key._id,
       userId: key.userId,
@@ -339,13 +345,13 @@ export const authorize = internalMutation({
         buckets.push({ bucket: `ip:${ipHash}:route`, limit: Math.min(perIp, routeRateLimitPerMinute()) });
       }
     } else {
-      const perKey = clampLimit(key.rateLimitPerMinute, defaultLimit);
+      const perKey = planRate ?? clampLimit(key.rateLimitPerMinute, defaultLimit);
       buckets.push({ bucket: `key:${key._id}`, limit: perKey });
-      buckets.push({ bucket: `user:${key.userId}`, limit: Math.max(perKey, accountRateLimitPerMinute()) });
+      buckets.push({ bucket: `user:${key.userId}`, limit: planRate ?? Math.max(perKey, accountRateLimitPerMinute()) });
       const endpointLimit =
         args.endpoint === "route"
-          ? Math.min(perKey, endpointRateLimitPerMinute(), routeRateLimitPerMinute())
-          : Math.min(perKey, endpointRateLimitPerMinute());
+          ? Math.min(perKey, planRate ?? endpointRateLimitPerMinute(), routeRateLimitPerMinute())
+          : Math.min(perKey, planRate ?? endpointRateLimitPerMinute());
       buckets.push({
         bucket: `key:${key._id}:endpoint:${args.endpoint ?? "unknown"}`,
         limit: endpointLimit,
@@ -368,7 +374,7 @@ export const authorize = internalMutation({
       };
     }
     if (!isSiteKey) {
-      const quota = await consumeCustomerQuotas(ctx, key, args.endpoint, now);
+      const quota = await consumeCustomerQuotas(ctx, key, args.endpoint, now, plan);
       if (!quota.allowed) {
         await writeAudit(ctx, "api_quota_exhausted", "WARNING", "failure", {
           tenantId: key.userId,

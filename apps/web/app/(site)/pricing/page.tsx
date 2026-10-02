@@ -13,24 +13,24 @@ export const metadata: Metadata = {
 const PLANS = [
   {
     id: "starter",
-    price: "$50",
+    price: "₮1,000",
     requests: "10,000",
     rate: "100",
     features: ["geocoding", "reverseGeocoding", "routing", "communitySupport"],
   },
   {
     id: "essentials",
-    price: "$137.50",
+    price: "₮1,000",
     requests: "100,000",
     rate: "500",
-    features: ["everythingStarter", "higherLimits", "usageAnalytics", "emailSupport"],
+    features: ["everythingStarter", "higherLimits", "usageAnalytics"],
   },
   {
     id: "pro",
-    price: "$600",
+    price: "₮1,000",
     requests: "500,000",
     rate: "2,000",
-    features: ["everythingEssentials", "priorityRouting", "multipleProjects", "prioritySupport"],
+    features: ["everythingEssentials", "higherLimits", "usageAnalytics"],
   },
   {
     id: "enterprise",
@@ -125,7 +125,7 @@ export default async function PricingPage() {
                     variant="contrast"
                     className="mt-8 w-full"
                   >
-                    <Link href="/register">
+                    <Link href={plan.id === "enterprise" ? "/register" : `/dashboard/billing?plan=${plan.id}`}>
                       {plan.id === "enterprise" ? t("pricing.contactUs") : t("pricing.getStarted")}
                       <ArrowRight aria-hidden="true" />
                     </Link>

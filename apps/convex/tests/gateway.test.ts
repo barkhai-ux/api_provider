@@ -153,6 +153,22 @@ describe("gateway authorize", () => {
     expect(audit.every((event) => JSON.stringify(event).includes(HASH) === false)).toBe(true);
   });
 
+  it("applies a paid plan's limits and stops applying them after expiry", async () => {
+    const t = setup();
+    process.env.KEY_DAILY_QUOTA_UNITS = "1";
+    process.env.KEY_MONTHLY_QUOTA_UNITS = "1";
+    process.env.TENANT_MONTHLY_QUOTA_UNITS = "1";
+    const alice = await signedInUser(t, "alice@example.com");
+    await insertKey(t, alice.userId, { keyHash: HASH });
+    await t.run((ctx) => ctx.db.patch(alice.userId, { plan: "essentials", planExpiresAt: Date.now() + 60_000 }));
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs({ endpoint: "route" }))).status).toBe("ok");
+    const windows = await t.run((ctx) => ctx.db.query("quotaWindows").collect());
+    expect(windows.find((window) => window.bucket === `tenant:${alice.userId}` && window.period === "month")?.units).toBe(2);
+    await t.run((ctx) => ctx.db.patch(alice.userId, { planExpiresAt: Date.now() - 1 }));
+    expect((await t.mutation(internal.gateway.authorize, authorizeArgs())).status).toBe("quota_exceeded");
+  });
+
   it("limits the anonymous demo across minute and hour buckets without storing raw IPs", async () => {
     const t = setup();
     const args = {

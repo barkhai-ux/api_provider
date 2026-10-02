@@ -11,6 +11,7 @@ Your ArcGIS FeatureServer layers are the data source, but they stay an internal 
 - [Quick start (Docker Compose)](#quick-start-docker-compose)
 - [Environment variables](#environment-variables)
 - [Data storage (Convex)](#data-storage-convex)
+- [QPay payments through Wire](#qpay-payments-through-wire)
 - [ArcGIS configuration](#arcgis-configuration)
 - [Running locally without Docker](#running-locally-without-docker)
 - [Running tests](#running-tests)
@@ -152,6 +153,7 @@ Every variable is documented in [`.env.example`](.env.example). The important on
 - `CONVEX_INSTANCE_SECRET`, `CONVEX_CLOUD_ORIGIN`, `CONVEX_SITE_ORIGIN`
 - `EMAIL_BACKEND` (`console` or `resend`), `RESEND_API_KEY`, `EMAIL_FROM`: password reset emails.
 - `USAGE_RETENTION_DAYS`: raw request retention.
+- `WIREPAYMENT_SECRET_KEY`, `WIREPAYMENT_WEBHOOK_SECRET`: Wire project API key and webhook signing secret. Set on the Convex deployment only.
 
 **API**
 - `RATE_LIMIT_PER_MINUTE`, `DEMO_REQUESTS_PER_MINUTE`, `DEMO_REQUESTS_PER_HOUR`, customer/demo CORS allowlists, quota limits, and ArcGIS timeout/circuit-breaker limits.
@@ -172,11 +174,25 @@ Accounts, keys, usage and rate limits live in a self-hosted [Convex](https://www
 | `apiRequests` | key, user, endpoint, method, status, response time, timestamp | `by_user_time`, `by_key_time`, `by_time` |
 | `usageDaily` | per key/endpoint/UTC-day totals for dashboards | `by_user_day`, `by_key_endpoint_day` |
 | `rateLimitWindows` | fixed one-minute counters per key (or per visitor IP for the site key) | `by_bucket_window`, `by_window` |
-| `quotaWindows` | durable daily/monthly cost-unit counters per key, tenant and endpoint | `by_bucket_window`, `by_window` |
+| `quotaWindows` | durable daily/monthly usage counters per key, tenant and endpoint | `by_bucket_period_start`, `by_period_start` |
+| `payments` | Wire payment intents, checkout links and settlement status | `by_intent`, `by_user`, `by_status_created` |
 | `securityAuditEvents` | append-oriented authentication, authorization, key-lifecycle and abuse events | `by_timestamp`, `by_user_time`, `by_key_time` |
 | `playgroundTokens` | 15-minute tokens for the docs playground | `by_token_hash`, `by_expires` |
 
 A cron job prunes expired windows, tokens and old raw requests every 10 minutes.
+
+## QPay payments through Wire
+
+The three paid plans are ₮1,000 each for 30 days. Checkout confirms a Wire PaymentIntent and displays its QPay QR and banking app links in the billing dialog. Payment status is verified with Wire before the plan is activated. A signed webhook updates the account promptly; a one-minute reconciliation job checks pending payments if a webhook is delayed. Renewals are manual, and request allowances reset at the start of each UTC month. Billing history shows completed payments only.
+
+To enable checkout after the Wire project is ready:
+
+1. For live payments, complete the [operator activation flow](https://docs.wire.mn/docs/guides/going-live) in Wire: connect an operator, select a settlement account, wait for approval, and sign its agreement. Until then Wire returns `connector_required` or `settlement_account_required`. Test mode uses the sandbox operator without this setup.
+2. Add the project API key as `WIREPAYMENT_SECRET_KEY` in the Convex deployment. A live deployment requires an `sk_live_` key; test keys only work outside production. Docker Compose forwards this variable from `.env` through `convex-deploy`.
+3. Register `https://<your-convex-site-origin>/wirepayment/webhook` as the project's endpoint for `payment_intent.succeeded`. Keep the returned `whsec_` secret and set it as `WIREPAYMENT_WEBHOOK_SECRET` in Convex. Verify the endpoint after the secret has been installed.
+4. Deploy Convex again, then complete a test-mode checkout before using a live key. The checkout button reports a configuration error until the API key is set.
+
+The Wire key and webhook secret never reach the browser or FastAPI. See [Wire PaymentIntent confirmation](https://docs.wire.mn/docs/api/paymentintents/v1/payment_intents/id/confirm/post) and [Wire webhooks](https://docs.wire.mn/docs/guides/webhooks) for the payment response and signature details.
 
 ### Using Convex Cloud instead
 

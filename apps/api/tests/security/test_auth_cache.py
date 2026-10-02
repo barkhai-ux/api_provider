@@ -1,6 +1,7 @@
-"""The in-process authorization cache (AUTH_CACHE_TTL_SECONDS): repeat requests
-skip Convex, rate limiting is enforced locally, and revocation is honoured on
-the next describe."""
+"""Only the website's site key may use the local authorization cache.
+
+Customer keys always reach Convex so paid-plan quotas are enforced there.
+"""
 
 from __future__ import annotations
 
@@ -22,7 +23,15 @@ from tests.test_api import PLACE_FIELDS, PLACES
 
 @pytest.fixture
 def cached_settings(settings: Settings) -> Settings:
-    return settings.model_copy(update={"auth_cache_ttl_seconds": 60.0})
+    return settings.model_copy(update={
+        "auth_cache_ttl_seconds": 60.0,
+        "arcgis_client_id": None,
+        "arcgis_client_secret": None,
+        "arcgis_username": None,
+        "arcgis_password": None,
+        "arcgis_token": None,
+        "arcgis_geocode_server": None,
+    })
 
 
 @pytest.fixture
@@ -40,7 +49,7 @@ async def cached_client(cached_app):  # type: ignore[no-untyped-def]
         yield http
 
 
-async def test_repeat_requests_skip_convex(
+async def test_customer_requests_reach_convex(
     cached_client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
 ) -> None:
     arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
@@ -48,13 +57,11 @@ async def test_repeat_requests_skip_convex(
         assert (
             await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth())
         ).status_code == 200
-    # One describe (cache miss), then served from cache; the counting mutation
-    # (authorize) is never called.
-    assert len(convex.describe_calls) == 1
-    assert convex.authorize_calls == []
+    assert convex.describe_calls == []
+    assert len(convex.authorize_calls) == 5
 
 
-async def test_local_rate_limit_is_enforced(
+async def test_customer_rate_limit_is_enforced_in_convex(
     cached_client: httpx.AsyncClient, convex: ConvexFake, arcgis: ArcGISMocker
 ) -> None:
     arcgis(PLACES_URL, PLACE_FIELDS, PLACES)
@@ -62,9 +69,9 @@ async def test_local_rate_limit_is_enforced(
         (await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(LIMITED_KEY))).status_code
         for _ in range(4)
     ]
-    # LIMITED_KEY is 2/min; the third request is refused, all without Convex counting.
+    # LIMITED_KEY is 2/min; Convex counts every attempt.
     assert codes == [200, 200, 429, 429]
-    assert convex.authorize_calls == []
+    assert len(convex.authorize_calls) == 4
 
 
 async def test_revoked_key_is_honoured_and_cached(
@@ -76,8 +83,9 @@ async def test_revoked_key_is_honoured_and_cached(
         assert (
             await cached_client.get("/v1/geocode", params={"q": "sukh"}, headers=auth(key))
         ).status_code == 403
-    # Revoked is terminal: looked up once, then served from the known-bad cache.
-    assert len(convex.describe_calls) == 1
+    # Revoked is terminal: Convex is called once, then known-bad cache applies.
+    assert len(convex.authorize_calls) == 1
+    assert convex.describe_calls == []
 
 
 async def test_endpoint_scope_enforced_locally(cached_client: httpx.AsyncClient, convex: ConvexFake) -> None:

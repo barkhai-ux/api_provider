@@ -1,5 +1,6 @@
 import {
   BookOpen,
+  CreditCard,
   ChartColumn,
   FlaskConical,
   House,
@@ -15,6 +16,7 @@ export const CONSOLE_NAV: ConsoleNavItem[] = [
   { href: "/dashboard", labelKey: "dashboard.nav.home", icon: House, exact: true },
   { href: "/dashboard/api-keys", labelKey: "dashboard.nav.apiKeys", icon: KeyRound },
   { href: "/dashboard/usage", labelKey: "dashboard.nav.usage", icon: ChartColumn },
+  { href: "/dashboard/billing", labelKey: "dashboard.nav.billing", icon: CreditCard },
   { href: "/developers/api-reference", labelKey: "dashboard.nav.apiPlayground", icon: FlaskConical, external: true },
   { href: "/developers/docs", labelKey: "dashboard.nav.docs", icon: BookOpen, external: true },
   { href: "/", labelKey: "dashboard.nav.map", icon: MapIcon, external: true },

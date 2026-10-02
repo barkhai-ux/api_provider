@@ -140,18 +140,16 @@ async def require_api_key(
             limiter.record_failure(client)
         raise _refusal(cached, kind)
 
-    # Fast path: for API keys, cache the key's limits and rate-limit in this
-    # process, skipping the Convex round-trip. Playground tokens always go to
-    # Convex (short-lived, low volume).
-    if kind == "key" and settings.auth_cache_ttl_seconds > 0:
-        return await _authorize_cached(
-            request, settings, gateway, known_bad, limiter, client, credential_hash
-        )
-
     site_key_hash: str | None = request.app.state.site_key_hash
     is_site_key = (
         kind == "key" and site_key_hash is not None and hmac.compare_digest(credential_hash, site_key_hash)
     )
+    # Paid account quotas and plan changes live in Convex. Only the website's
+    # site key can use the local cache without bypassing billing limits.
+    if is_site_key and settings.auth_cache_ttl_seconds > 0:
+        return await _authorize_cached(
+            request, settings, gateway, known_bad, limiter, client, credential_hash
+        )
 
     try:
         result = await gateway.authorize(

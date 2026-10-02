@@ -16,7 +16,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from app.services.arcgis.client import ArcGISError
 from app.services.gateway import ConvexGateway
 from app.services.geo.factory import GeoServices
 
@@ -54,11 +53,15 @@ async def _check_source(geo: GeoServices, name: str) -> CheckStatus:
         return "not_configured"
     kind, url = source
     try:
+        if kind == "http":
+            response = await asyncio.wait_for(geo.http_client.get(url), READY_TIMEOUT_SECONDS)
+            response.raise_for_status()
+            return "ok"
         if kind in ("locator", "service"):
             await asyncio.wait_for(geo.arcgis_client.get_json(url, {}), READY_TIMEOUT_SECONDS)
         else:
             await asyncio.wait_for(geo.arcgis_client.layer_info(url), READY_TIMEOUT_SECONDS)
-    except (ArcGISError, TimeoutError):
+    except Exception:
         return "fail"
     return "ok"
 

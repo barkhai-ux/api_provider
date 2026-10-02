@@ -26,6 +26,8 @@ export default defineSchema({
     // Set by an operator (admin:disableUser) to lock the account.
     disabledAt: v.optional(v.number()),
     updatedAt: v.optional(v.number()),
+    plan: v.optional(v.union(v.literal("starter"), v.literal("essentials"), v.literal("pro"))),
+    planExpiresAt: v.optional(v.number()),
   })
     .index("email", ["email"])
     .index("by_system", ["isSystem"])
@@ -127,4 +129,19 @@ export default defineSchema({
     .index("by_token_hash", ["tokenHash"])
     .index("by_key", ["apiKeyId"])
     .index("by_expires", ["expiresAt"]),
+
+  payments: defineTable({
+    userId: v.id("users"),
+    plan: v.union(v.literal("starter"), v.literal("essentials"), v.literal("pro")),
+    paymentIntentId: v.string(),
+    amountMinor: v.number(),
+    currency: v.literal("MNT"),
+    status: v.union(v.literal("pending"), v.literal("succeeded"), v.literal("failed")),
+    createdAt: v.number(),
+    paidAt: v.optional(v.number()),
+    checkoutUrl: v.optional(v.string()),
+  })
+    .index("by_intent", ["paymentIntentId"])
+    .index("by_user", ["userId", "createdAt"])
+    .index("by_status_created", ["status", "createdAt"]),
 });

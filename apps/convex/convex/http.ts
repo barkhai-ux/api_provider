@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { httpAction } from "./_generated/server";
 import { auth } from "./auth";
 import { timingSafeEqual } from "./lib/crypto";
+import { verifyWireSignature } from "./lib/wire";
 
 const http = httpRouter();
 
@@ -183,6 +184,29 @@ http.route({
       written += result.written;
     }
     return json({ written, dropped: entries.length - written });
+  }),
+});
+
+http.route({
+  path: "/wirepayment/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    const secret = process.env.WIREPAYMENT_WEBHOOK_SECRET;
+    if (!secret) return json({ error: "not configured" }, 503);
+    const raw = await request.text();
+    if (raw.length > 64 * 1024) return json({ error: "body too large" }, 413);
+    if (!(await verifyWireSignature(raw, request.headers.get("WirePayment-Signature"), secret))) {
+      return json({ error: "invalid signature" }, 400);
+    }
+    let event: { type?: string; data?: { id?: string; object?: { id?: string } } };
+    try { event = JSON.parse(raw); }
+    catch { return json({ error: "invalid body" }, 400); }
+    const intentId = event.data?.object?.id ?? event.data?.id;
+    if (intentId && ["payment_intent.succeeded", "payment_intent.payment_failed", "payment_intent.canceled"].includes(event.type ?? "")) {
+      // Always retrieve the intent from Wire; event contents alone never grant a plan.
+      await ctx.runAction(internal.payments.settleFromWebhook, { paymentIntentId: intentId });
+    }
+    return json({ ok: true });
   }),
 });
 
