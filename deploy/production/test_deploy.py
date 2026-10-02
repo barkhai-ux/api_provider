@@ -63,6 +63,12 @@ class DeploymentTests(unittest.TestCase):
         self.assertIn("location /demo/ { proxy_pass http://127.0.0.1:8009; }", config)
         self.assertIn("location /v1/ { proxy_pass http://127.0.0.1:8009; }", config)
 
+    def test_nginx_exposes_only_the_signed_wire_callback_on_convex_site(self):
+        config = Path(__file__).with_name("nginx.conf").read_text()
+        self.assertIn("location = /convex-site/wirepayment/webhook {", config)
+        self.assertIn("proxy_pass http://127.0.0.1:3211/wirepayment/webhook;", config)
+        self.assertIn("location /convex-site/ { return 404; }", config)
+
     def test_nginx_hides_version_and_rejects_cross_origin_convex_requests(self):
         config = Path(__file__).with_name("nginx.conf").read_text()
         self.assertIn("server_tokens off;", config)
