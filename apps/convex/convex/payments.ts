@@ -4,7 +4,7 @@ import type { Id } from "./_generated/dataModel";
 import { action, internalAction, internalMutation, internalQuery, mutation, query, type ActionCtx } from "./_generated/server";
 import { requireUserId } from "./lib/session";
 import { activePlan, freeRequestsRemaining, FREE_TOTAL_REQUESTS, hasKeyAccess, PAID_PLANS, PLAN_DURATION_MS, PLAN_WIRE_AMOUNT, PLAN_PRICE_MNT } from "./lib/plans";
-import { WireApiError, wireRequest, type WireCheckoutSession, type WireIntent } from "./lib/wire";
+import { WireApiError, wireRequest, type WireIntent } from "./lib/wire";
 import { isProduction } from "./lib/env";
 
 const planValidator = v.union(v.literal("starter"), v.literal("essentials"), v.literal("pro"));
@@ -134,15 +134,7 @@ async function checkIntent(ctx: ActionCtx, paymentIntentId: string): Promise<str
   return intent.status;
 }
 
-function trustedCheckoutUrl(value: string): string {
-  const url = new URL(value);
-  if (url.protocol !== "https:" || url.hostname !== "pay.wire.mn" || !url.pathname.startsWith("/c/")) {
-    throw new Error("Wire returned an invalid checkout URL.");
-  }
-  return url.toString();
-}
-
-/** Create a Wire-hosted checkout with QPay QR and bank-app deeplinks. */
+/** Confirm the intent so our checkout can show Wire's QPay QR and bank-app deeplinks. */
 export const startCheckout = action({
   args: { plan: planValidator, requestId: v.string() },
   handler: async (ctx, { plan, requestId }): Promise<
@@ -179,21 +171,16 @@ export const startCheckout = action({
     }
     if (!intent.id || intent.amount !== PLAN_WIRE_AMOUNT || intent.currency !== "MNT") throw new Error("Invalid Wire payment intent.");
     const paymentId = await ctx.runMutation(internal.payments._recordPending, { userId, plan, paymentIntentId: intent.id });
-    const siteUrl = process.env.SITE_URL;
-    const billingUrl = siteUrl ? new URL("/dashboard/billing", siteUrl).toString() : undefined;
-    const session = await wireRequest<WireCheckoutSession>("/v1/checkout/sessions", {
-      method: "POST", idempotencyKey: `checkout-${reference}`,
-      body: {
-        payment_intent: intent.id,
-        ...(billingUrl ? { success_url: billingUrl, cancel_url: billingUrl } : {}),
-      },
+    const confirmed = await wireRequest<WireIntent>(`/v1/payment_intents/${encodeURIComponent(intent.id)}/confirm`, {
+      method: "POST", idempotencyKey: `confirm-${reference}`, body: {},
     });
-    if (!session.id || session.payment_intent !== intent.id) throw new Error("Invalid Wire checkout session.");
-    return {
-      status: "ready",
-      paymentId,
-      nextAction: { redirect_to_url: { url: trustedCheckoutUrl(session.url) } },
-    };
+    if (confirmed.id !== intent.id || confirmed.amount !== PLAN_WIRE_AMOUNT || confirmed.currency !== "MNT") throw new Error("Invalid confirmed Wire payment intent.");
+    if (confirmed.status === "succeeded") {
+      await ctx.runMutation(internal.payments._settle, {
+        paymentIntentId: intent.id, status: "succeeded", amount: confirmed.amount, currency: confirmed.currency,
+      });
+    }
+    return { status: "ready", paymentId, nextAction: confirmed.next_action ?? null };
   },
 });
 

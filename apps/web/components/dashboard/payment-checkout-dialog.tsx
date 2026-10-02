@@ -12,6 +12,13 @@ import { useI18n } from "@/lib/i18n/provider";
 
 type Plan = "starter" | "essentials" | "pro";
 type Checkout = { paymentId: Id<"payments">; plan: Plan; nextAction: unknown };
+type BankLink = { name: string; description: string | null; link: string; logo: string | null };
+
+const BANK_APP_SCHEMES = new Set([
+  "ard", "arig", "bogdbank", "capitronbank", "ckbank", "hipay", "khanbank", "mbank", "monpay", "most",
+  "nibank", "pass", "payon", "qpaywallet", "socialpay-payment", "sono", "statebankmongolia", "tdbbank",
+  "tdbwallet", "tino", "toki", "transbank", "xacbank",
+]);
 
 function object(value: unknown): Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value)
@@ -22,16 +29,35 @@ function string(value: unknown): string | null {
   return typeof value === "string" && value.length > 0 ? value : null;
 }
 
-function readPaymentAction(value: unknown): { qrText: string | null; qrImage: string | null; redirectUrl: string | null } {
+function safeBankLink(value: unknown): string | null {
+  const link = string(value);
+  if (!link) return null;
+  try {
+    return BANK_APP_SCHEMES.has(new URL(link).protocol.slice(0, -1).toLowerCase()) ? link : null;
+  } catch { return null; }
+}
+
+function readPaymentAction(value: unknown): { qrText: string | null; qrImage: string | null; banks: BankLink[] } {
   const root = object(value);
   const qr = object(root.qr ?? root.qpay ?? root.data ?? root.display ?? value);
   const qrText = string(qr.text ?? qr.qr_text ?? qr.qrText);
   const image = string(qr.image_url ?? qr.qr_image ?? qr.qrImage ?? qr.image);
   const qrImage = image && (/^https:\/\//i.test(image) || /^data:image\/(png|jpeg|webp);base64,/i.test(image))
     ? image : image && /^[A-Za-z\d+/=]+$/.test(image) ? `data:image/png;base64,${image}` : null;
-  const redirect = string(object(root.redirect_to_url).url ?? qr.url);
-  const redirectUrl = redirect && /^https:\/\//i.test(redirect) ? redirect : null;
-  return { qrText, qrImage, redirectUrl };
+  const banks = Array.isArray(qr.deeplinks) ? qr.deeplinks.flatMap((value): BankLink[] => {
+    const bank = object(value);
+    const name = string(bank.name);
+    const link = safeBankLink(bank.link);
+    if (!name || !link) return [];
+    const logo = string(bank.logo);
+    return [{
+      name,
+      description: string(bank.description),
+      link,
+      logo: logo && /^https:\/\//i.test(logo) ? logo : null,
+    }];
+  }) : [];
+  return { qrText, qrImage, banks };
 }
 
 function PaymentQr({ value }: { value: string }) {
@@ -79,9 +105,7 @@ export function PaymentCheckoutDialog({ checkout, status, onClose, priceMnt }: {
           <DialogDescription>
             {succeeded ? t("billing.paymentCompleteDescription")
               : failed ? t("billing.paymentFailed")
-                : payment.redirectUrl && !payment.qrText && !payment.qrImage
-                  ? t("billing.hostedCheckoutDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })
-                  : t("billing.dialogDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })}
+                : t("billing.dialogDescription", { plan: checkout ? t(`pricing.plans.${checkout.plan}.name`) : "" })}
           </DialogDescription>
         </DialogHeader>
 
@@ -98,26 +122,35 @@ export function PaymentCheckoutDialog({ checkout, status, onClose, priceMnt }: {
               <strong className="text-xl">₮{new Intl.NumberFormat(locale === "mn" ? "mn-MN" : "en-US").format(priceMnt)}</strong>
             </div>
             <div className="flex flex-col items-center gap-3 rounded-2xl bg-gradient-to-b from-primary/5 to-muted/60 px-4 py-5">
-              {payment.qrText ? (
-                <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-border/70"><PaymentQr value={payment.qrText} /></div>
-              ) : payment.qrImage ? (
-                <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-border/70">
-                  <img src={payment.qrImage} alt={t("billing.qrAlt")} className="size-52 object-contain" />
+              {(payment.qrImage || payment.qrText) && (
+                <div className={payment.banks.length > 0 ? "hidden flex-col items-center gap-3 md:flex" : "flex flex-col items-center gap-3"}>
+                  <div className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-border/70">
+                    {payment.qrImage
+                      ? <img src={payment.qrImage} alt={t("billing.qrAlt")} className="size-52 object-contain" />
+                      : <PaymentQr value={payment.qrText!} />}
+                  </div>
+                  <p className="max-w-64 text-center text-sm text-muted-foreground">{t("billing.scanInstruction")}</p>
                 </div>
-              ) : payment.redirectUrl ? (
-                <p className="rounded-lg bg-muted p-4 text-center text-muted-foreground">{t("billing.hostedCheckoutInstruction")}</p>
-              ) : (
+              )}
+              {payment.banks.length > 0 && (
+                <div className="flex w-full flex-col gap-3 md:hidden">
+                  <p className="text-center text-sm font-medium">{t("billing.chooseBank")}</p>
+                  <div className="grid max-h-[42dvh] grid-cols-2 gap-2 overflow-y-auto pr-1">
+                    {payment.banks.map((bank) => (
+                      <Button key={`${bank.name}-${bank.link}`} variant="outline" className="h-auto min-h-16 justify-start gap-2 bg-background px-3 py-2" asChild>
+                        <a href={bank.link} rel="noopener noreferrer">
+                          {bank.logo && <img src={bank.logo} alt="" className="size-8 shrink-0 rounded-lg object-contain" />}
+                          <span className="min-w-0 text-left text-xs font-medium leading-tight">{bank.name}</span>
+                        </a>
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!payment.qrText && !payment.qrImage && payment.banks.length === 0 && (
                 <p className="rounded-lg bg-muted p-4 text-center text-muted-foreground">{t("billing.noPaymentInstructions")}</p>
               )}
-              {(payment.qrText || payment.qrImage) && (
-                <p className="max-w-64 text-center text-sm text-muted-foreground">{t("billing.scanInstruction")}</p>
-              )}
             </div>
-            {payment.redirectUrl && (
-              <Button variant="outline" asChild>
-                <a href={payment.redirectUrl} target="_blank" rel="noopener noreferrer">{t("billing.openPaymentPage")}</a>
-              </Button>
-            )}
             <div className="flex items-center justify-center gap-2 border-t pt-4 text-center text-sm text-muted-foreground">
               <LoaderCircle className="size-4 animate-spin text-primary" aria-hidden="true" />
               {t("billing.waitingForPayment")}
